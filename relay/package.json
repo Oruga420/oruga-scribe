@@ -1,0 +1,17 @@
+{
+  "name": "oruga-scribe-relay",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Localhost relay for oruga-scribe. Spawns claude -p on an isolated personal login. Holds no Anthropic secret.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "smoke": "node smoke.js",
+    "login": "node login.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {},
+  "license": "UNLICENSED"
+}
