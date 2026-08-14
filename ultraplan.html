@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>oruga-scribe: Ultraplan rev 2.1</title>
+<title>oruga-scribe: Ultraplan rev 2.2</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -83,6 +83,23 @@ ul.clean li.block .box{border-color:var(--spark);background:var(--red-soft)}
 .files .del{color:var(--red-ink);text-decoration:line-through}
 .files .mod{color:var(--amber-ink);font-weight:700}
 .note{border-left:3px solid var(--spark);padding:2px 0 2px 16px;color:var(--muted);margin:16px 0}
+
+/* progress */
+.bar{height:8px;border-radius:99px;background:var(--gray-soft);overflow:hidden;min-width:90px}
+.bar i{display:block;height:100%;background:var(--teal);border-radius:99px}
+.bar i.part{background:var(--mist)}
+.p-done{background:var(--teal);color:#fff}
+.p-next{background:var(--spark);color:#fff}
+.p-todo{background:var(--gray-soft);color:var(--gray-ink)}
+tbody tr.rowdone td:first-child{color:var(--green-ink)}
+.phase.done:before{background:var(--teal)}
+.phase.next:before{background:var(--spark);width:6px}
+.phase h4 .st{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;padding:3px 9px;border-radius:999px;margin-left:10px;vertical-align:3px}
+.blockcard{background:var(--ink);color:#dff0ee;border-radius:15px;padding:22px 24px;margin-bottom:14px}
+.blockcard h3{margin:0 0 10px;color:#fff;font-size:17px}
+.blockcard p{margin:0 0 12px;color:#a8c9c6}
+.blockcard code{background:rgba(255,255,255,.12);color:#ffd9a0}
+.blockcard .runme{background:#011820;border:1px solid #0d3d4a;border-radius:10px;padding:12px 14px;font-family:ui-monospace,Consolas,monospace;font-size:12.5px;color:#c9e6e3;overflow-x:auto;white-space:pre;margin:0 0 10px}
 .cmd{background:var(--ink);color:#c9e6e3;border-radius:12px;padding:16px 18px;font-family:ui-monospace,'Cascadia Code',Consolas,monospace;font-size:12.5px;line-height:1.7;overflow-x:auto;white-space:pre;margin:0 0 14px}
 .cmd b{color:#ffd9a0;font-weight:700}
 footer{margin-top:48px;padding:26px 0 60px;border-top:1px solid var(--hair);color:var(--faint);font-size:13px}
@@ -90,7 +107,7 @@ footer{margin-top:48px;padding:26px 0 60px;border-top:1px solid var(--hair);colo
 
 <div class="topbar"><div class="wrap">
   <span class="dot"></span><span class="mark">oruga-scribe</span>
-  <span class="rev">Ultraplan rev 2.1 / phase 0 done</span>
+  <span class="rev">Ultraplan rev 2.2 / what is left</span>
 </div></div>
 
 <div class="wrap">
@@ -100,7 +117,7 @@ footer{margin-top:48px;padding:26px 0 60px;border-top:1px solid var(--hair);colo
   <h1>A Chrome extension that watches you work and writes the SOP</h1>
   <p class="lede">You click through any web tool. The extension records each meaningful interaction, screenshots the state before each click, streams written narration into a side panel as you go, speaks it with ElevenLabs if you want, and at the end produces a finished Standard Operating Procedure as an editorial HTML page.</p>
   <div class="meta">
-    <span>rev 2.1, 2026-08-14</span>
+    <span>rev 2.2, 2026-08-14</span>
     <span>C:\Users\chuck\Desktop\oruga-scribe</span>
     <span>Chrome 151, Node 24, claude 2.1.219</span>
     <span>Research: 5 agents plus 2 adversarial verifiers</span>
@@ -108,13 +125,51 @@ footer{margin-top:48px;padding:26px 0 60px;border-top:1px solid var(--hair);colo
 </div>
 
 <div class="stats">
-  <div class="stat"><div class="n">0</div><div class="l">API keys needed</div></div>
+  <div class="stat"><div class="n">9 / 32</div><div class="l">Files built</div></div>
+  <div class="stat"><div class="n">1.5 / 7</div><div class="l">Phases done</div></div>
+  <div class="stat"><div class="n">7 / 7</div><div class="l">Smoke checks green</div></div>
+  <div class="stat"><div class="n">1</div><div class="l">Blocker, needs you</div></div>
   <div class="stat"><div class="n">1.9 s</div><div class="l">To first word, measured</div></div>
-  <div class="stat"><div class="n">3.3 s</div><div class="l">Narration call, measured</div></div>
-  <div class="stat"><div class="n">7</div><div class="l">Phases</div></div>
-  <div class="stat"><div class="n">31</div><div class="l">Files to create</div></div>
-  <div class="stat"><div class="n">0</div><div class="l">Open decisions</div></div>
+  <div class="stat"><div class="n">0</div><div class="l">API keys, open decisions</div></div>
 </div>
+
+<section>
+  <p class="eyebrow">Status</p>
+  <h2>What is left</h2>
+  <p class="sub">Phase 0 is closed and the trap-dense half of Phase 1 is built and passing. Everything below is the remaining work, in build order.</p>
+
+  <div class="blockcard">
+    <h3>Blocked on you: one OAuth login</h3>
+    <p>An interactive login cannot be automated. Until this runs, the relay cannot call Claude and 5 of the 12 smoke checks stay skipped. It does not block any other construction.</p>
+    <div class="runme">cd /c/Users/chuck/Desktop/oruga-scribe
+CLAUDE_CONFIG_DIR="$PWD/relay/.claude-home" claude</div>
+    <p style="margin:0">Then <code>/login</code> with your <b>personal</b> account and quit. Verify with <code>node relay/smoke.js</code>, which should go from 7 passed to 12 passed and print the measured tokens and time to first word.</p>
+  </div>
+
+  <div class="tw"><table>
+    <thead><tr><th>Phase</th><th>Status</th><th>Progress</th><th>What remains</th></tr></thead>
+    <tbody>
+      <tr class="rowdone"><td><b>0.</b> Scaffold and decide</td><td><span class="pill p-done">Done</span></td><td><div class="bar"><i style="width:100%"></i></div></td><td>Nothing. Folder, README, gitignore, local git, ARISE harness, Chrome policy check, account decision, config isolation verified</td></tr>
+      <tr><td><b>1.</b> Skeleton and relay spine</td><td><span class="pill p-next">In progress</span></td><td><div class="bar"><i class="part" style="width:45%"></i></div></td><td><b>Built:</b> <code>relay/claude.js</code>, both prompt files, <code>smoke.js</code>, <code>package.json</code>. <b>Left:</b> <code>manifest.json</code> plus panel shell, <code>server.js</code> (Express on 127.0.0.1, origin check), <code>schema.js</code> ported from puppeteer/replay, <code>idb.js</code></td></tr>
+      <tr><td><b>2.</b> Capture engine</td><td><span class="pill p-todo">Not started</span></td><td><div class="bar"><i style="width:0"></i></div></td><td><code>capture.js</code> (pointerdown descriptor, settle race, navigation branch), <code>accname.js</code>, <code>shadow-patch.js</code> (MAIN world attachShadow patch), <code>diff.js</code>, <code>guard.js</code> (the aspect ratio guard)</td></tr>
+      <tr><td><b>3.</b> Redaction gate</td><td><span class="pill p-todo">Not started</span></td><td><div class="bar"><i style="width:0"></i></div></td><td><code>redact-dom.js</code> (capture-time field skipping), <code>scrub.js</code> (regex sweep, URL scrub, fail closed), image blackout on OffscreenCanvas, the "show me what gets sent" preview</td></tr>
+      <tr><td><b>4.</b> Panel, narration, voice</td><td><span class="pill p-todo">Not started</span></td><td><div class="bar"><i style="width:0"></i></div></td><td><code>panel.html/css/js</code>, <code>steps-ui.js</code> (edit, prune, reorder, replace), <code>stream.js</code>, <code>routes/narrate.js</code> with the single-flight merge queue, <code>voice.js</code> plus <code>routes/tts.js</code></td></tr>
+      <tr><td><b>5.</b> SOP synthesis and output</td><td><span class="pill p-todo">Not started</span></td><td><div class="bar"><i style="width:0"></i></div></td><td><code>routes/synthesize.js</code>, <code>export.js</code> (editorial HTML plus Markdown, brand tokens from the company tag), <code>zip.js</code> with fflate, <code>chrome.downloads</code> wiring</td></tr>
+      <tr><td><b>6.</b> Harden and verify</td><td><span class="pill p-todo">Not started</span></td><td><div class="bar"><i style="width:0"></i></div></td><td><code>session.js</code>, <code>jsonl.js</code> (empty-result fallback), <code>quota.js</code> (rate_limit_event, degrade to local capture), crash recovery, restricted-page banners, then a real recording end to end</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Two things I have not verified yet, and will not pretend I have</h3>
+    <p><b>The live spawn path is untested.</b> Every offline check passes: the native exe resolves, the JSONL builds with the image block first, the dropped-image detection fires on both the CLI phrase and the sentinel, and the config dir is provably not the machine default. But no narration call has actually run through <code>relay/claude.js</code>. Validating it would have meant one call on the Promise seat, which is the thing you just decided against, so it waits for your login.</p>
+    <p><b>Nothing has been recorded from a real page.</b> Every number in this plan came from synthetic payloads and planted test images. The screenshot timing algorithm in Section 04 is reasoned from the platform docs and has never met a real SPA. Expect Phase 2 to surface things no amount of research would have.</p>
+  </div>
+
+  <h3>Deviation log</h3>
+  <div class="card">
+    <p><b>Scoped the MemPalace conversation mining.</b> The <code>/arise</code> recipe says to mine <code>~/.claude/projects/</code> into the project wing. That directory holds 25 project folders including Delphi, Ponos and Promise work, so following it literally would have pulled company conversations into a personal project's memory. Mined only this project's folder instead: 6 transcripts, 10 drawers, against 185 drawers from the project files.</p>
+  </div>
+</section>
 
 <section>
   <p class="eyebrow">What changed in rev 2</p>
@@ -268,8 +323,8 @@ claude -p --output-format json --verbose
   <h2>Execution plan</h2>
   <p class="sub">Seven phases. Items marked parallel have no dependency on each other.</p>
 
-  <div class="phase">
-    <h4>Phase 0. Scaffold and decide</h4>
+  <div class="phase done">
+    <h4>Phase 0. Scaffold and decide <span class="st p-done">Done</span></h4>
     <div class="dep">No dependencies</div>
     <ul>
       <li><b>0.1</b> Folder, README, local <code>git init</code>, no remote. <code>.gitignore</code> for <code>.env</code>, <code>out/</code>, <code>captures/</code>, the ARISE harness, and the relay's scratch dir.</li>
@@ -280,13 +335,14 @@ claude -p --output-format json --verbose
     <p style="margin:12px 0 0;font-size:13px;color:var(--green-ink);font-weight:700">DONE. Folder, README, .gitignore, local git init with no remote, relay/README-auth.md, policy check, config isolation verified. One manual login step pending.</p>
   </div>
 
-  <div class="phase">
-    <h4>Phase 1. Skeleton and relay spine <span class="par">3 parallel</span></h4>
+  <div class="phase next">
+    <h4>Phase 1. Skeleton and relay spine <span class="st p-next">In progress</span><span class="par">3 parallel</span></h4>
     <div class="dep">Depends on Phase 0</div>
     <ul>
-      <li><b>1.1</b> <code>manifest.json</code> plus side panel shell. Permissions: <code>sidePanel</code>, <code>storage</code>, <code>unlimitedStorage</code>, <code>downloads</code>, <code>scripting</code>, <code>webNavigation</code>, <code>tabs</code>, <code>host_permissions: ["&lt;all_urls&gt;"]</code>. Only egress is localhost. <code>debugger</code> in <code>optional_permissions</code> only.</li>
-      <li><b>1.2</b> Relay spine: Express on <code>127.0.0.1</code>, Origin checked against the extension id, plus <code>claude.js</code> (executable resolution with a loud banner on miss, two spawn profiles, stdin writer, NDJSON stdout reader, stderr capture, timeout, orphan kill).</li>
-      <li><b>1.3</b> Step schema ported from <code>@puppeteer/replay</code> (click, change, navigate, with selectors as an ordered fallback array) plus the IndexedDB blob layer.</li>
+      <li><b>1.1</b> <span class="pill p-todo">Left</span> <code>manifest.json</code> plus side panel shell. Permissions: <code>sidePanel</code>, <code>storage</code>, <code>unlimitedStorage</code>, <code>downloads</code>, <code>scripting</code>, <code>webNavigation</code>, <code>tabs</code>, <code>host_permissions: ["&lt;all_urls&gt;"]</code>. Only egress is localhost. <code>debugger</code> in <code>optional_permissions</code> only.</li>
+      <li><b>1.2a</b> <span class="pill p-done">Built</span> <code>claude.js</code>: native exe resolution (never the .cmd), isolated <code>CLAUDE_CONFIG_DIR</code>, both spawn profiles, stdin writer, NDJSON reader with <code>text_delta</code> filtering, per-turn usage, <code>rate_limit_info</code>, timeout, <code>taskkill /T /F</code>, warm-up call. Plus both prompt files and <code>smoke.js</code>, 7 of 7 offline checks green.</li>
+      <li><b>1.2b</b> <span class="pill p-todo">Left</span> <code>server.js</code>: Express on <code>127.0.0.1</code>, Origin checked against the extension id, route wiring.</li>
+      <li><b>1.3</b> <span class="pill p-todo">Left</span> Step schema ported from <code>@puppeteer/replay</code> (click, change, navigate, with selectors as an ordered fallback array) plus the IndexedDB blob layer.</li>
     </ul>
   </div>
 
@@ -425,9 +481,9 @@ oruga-scribe/
       export.js                   markdown plus HTML render plus download
     icons/                        16, 48, 128
   relay/
-    package.json                  no Anthropic dependency, child_process only
+    package.json                  <span class="add">BUILT</span> no Anthropic dependency, child_process only
     server.js                     Express on 127.0.0.1, origin check
-    claude.js                     <span class="add">exe resolution, 2 spawn profiles, stdin, NDJSON reader, timeout, orphan kill</span>
+    claude.js                     <span class="add">BUILT</span> exe resolution, 2 spawn profiles, stdin, NDJSON reader, timeout, orphan kill
     session.js                    <span class="add">per-recording id, resume policy, scratch cwd lifecycle</span>
     jsonl.js                      <span class="add">empty-result fallback, scans the session transcript</span>
     quota.js                      <span class="mod">was ledger.js: call caps, rate_limit_event, degrade policy</span>
@@ -435,16 +491,19 @@ oruga-scribe/
     routes/synthesize.js          <span class="mod">spawner, sonnet default, opus opt-in, max-budget-usd</span>
     routes/tts.js                 ElevenLabs REST
     scrub.js                      fail-closed redaction, blocks every outbound call
-    prompts/sop-system.txt        the SOP system prompt
-    prompts/narrate-system.txt    <span class="add">narration persona, as a FILE never as argv</span>
-    README-auth.md                <span class="add">isolated CLAUDE_CONFIG_DIR setup, verified</span>
-    .claude-home/                 <span class="add">gitignored, personal login lives here</span>
+    prompts/sop-system.txt        <span class="add">BUILT</span> the SOP system prompt
+    prompts/narrate-system.txt    <span class="add">BUILT</span> narration persona, as a FILE never as argv
+    smoke.js                      <span class="add">BUILT</span> 60s golden path, 7/7 offline green
+    README-auth.md                <span class="add">BUILT</span> isolated CLAUDE_CONFIG_DIR setup, verified
+    .claude-home/                 gitignored, personal login lives here (awaiting /login)
     .env.example                  <span class="mod">ELEVENLABS_API_KEY only, the Anthropic line is gone</span>
     <span class="del">.env with ANTHROPIC_API_KEY</span>
     <span class="del">ledger.js dollar spend cap</span>
   out/                            gitignored, generated SOPs land here
 
-NET: 26 files in rev 1, 31 in rev 2.1. Added 6, removed 1, rewritten in place 6.</p>
+NET: 26 files in rev 1, 32 in rev 2.2 (smoke.js added). BUILT SO FAR: 9 of 32.
+Also built but not counted above: the ARISE harness (WIKI.md, sources/, wiki/ with 6 pages,
+.claude/ with CLAUDE.md, rules, agent, and the personal task layer).</p>
   </div>
   <div class="note">The only API key left in the entire project is ElevenLabs, for voice, which is opt-in. If voice slips to v1.1 then <code>.env.example</code>, <code>routes/tts.js</code> and <code>panel/voice.js</code> all disappear and the project holds no secrets at all.</div>
 </section>
@@ -463,9 +522,11 @@ NET: 26 files in rev 1, 31 in rev 2.1. Added 6, removed 1, rewritten in place 6.
       <li class="done"><span class="box"></span><div>Account boundary settled: isolated config dir, personal login, no Promise quota</div></li>
       <li class="done"><span class="box"></span><div>Plan approved, build started</div></li>
       <li class="done"><span class="box"></span><div>Chrome policy checked: no blocked hosts on this machine</div></li>
+      <li class="done"><span class="box"></span><div><code>/arise</code> installed, Personal mode, MemPalace wing <code>oruga-scribe</code>, 195 drawers</div></li>
+      <li class="done"><span class="box"></span><div>Relay spawn layer built, 7 of 7 offline smoke checks green</div></li>
       <li class="block"><span class="box"></span><div><b>Manual: <code>/login</code> once in the isolated config dir with the personal account</b></div></li>
+      <li><span class="box"></span><div>Live smoke test green: 12 of 12, with measured tokens and time to first word</div></li>
       <li><span class="box"></span><div>Target tool named for the first real recording</div></li>
-      <li><span class="box"></span><div><code>/arise</code> installed, Personal mode, MemPalace backend</div></li>
       <li><span class="box"></span><div>Redaction preview verified by eye before the first call</div></li>
       <li><span class="box"></span><div>End to end run on a real tool, SOP page reviewed</div></li>
     </ul>
@@ -473,7 +534,7 @@ NET: 26 files in rev 1, 31 in rev 2.1. Added 6, removed 1, rewritten in place 6.
 </section>
 
 <footer>
-  <p>oruga-scribe ultraplan rev 2.1, 2026-08-14. Local planning artifact: not deployed, not published, not pushed. Rev 2 replaced the API key with the logged-in Claude Code subscription. Rev 2.1 settles the account boundary on an isolated config dir, records the Phase 0 checks, and adds the <code>--system-prompt-file</code> finding. Research: 5 parallel agents covering MV3 platform limits, local prior art, open-source reuse, the model and voice layer, and risk, plus 2 adversarial verifiers that re-measured latency and vision independently and corrected both.</p>
+  <p>oruga-scribe ultraplan rev 2.2, 2026-08-14. Local planning artifact: not deployed, not published, not pushed. Rev 2 replaced the API key with the logged-in Claude Code subscription. Rev 2.1 settled the account boundary on an isolated config dir and added the <code>--system-prompt-file</code> finding. Rev 2.2 adds build status, the remaining work per phase, and an honest list of what is still unverified. Research: 5 parallel agents covering MV3 platform limits, local prior art, open-source reuse, the model and voice layer, and risk, plus 2 adversarial verifiers that re-measured latency and vision independently and corrected both.</p>
 </footer>
 
 </div>
