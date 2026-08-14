@@ -1,0 +1,457 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>oruga-scribe: Ultraplan rev 2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#eef3f2; --ink:#022532; --mist:#64ccc9; --spark:#ef3340; --teal:#138983;
+  --card:#ffffff; --line:#e2e9e8; --hair:#e0e7e6; --muted:#52666a; --faint:#9aaaac;
+  --green-soft:#e4f3f2; --green-ink:#0e6b66; --amber-soft:#fbefd6; --amber-ink:#8a5a00;
+  --red-soft:#fde3e5; --red-ink:#b21f29; --gray-soft:#eaefee; --gray-ink:#6c7e81;
+  --maxw:1080px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Barlow',system-ui,sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+
+.topbar{position:sticky;top:0;z-index:50;background:rgba(238,243,242,.86);backdrop-filter:blur(10px);border-bottom:1px solid var(--hair)}
+.topbar .wrap{display:flex;align-items:center;gap:10px;height:56px}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--spark);flex:none}
+.mark{font-weight:800;letter-spacing:-.01em}
+.topbar .rev{margin-left:auto;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--spark)}
+
+.hero{padding:56px 0 28px}
+.eyebrow{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:var(--teal);margin:0 0 10px}
+h1{font-size:clamp(30px,5vw,52px);line-height:1.06;letter-spacing:-.02em;margin:0 0 14px;font-weight:800;max-width:20ch}
+.lede{font-size:clamp(16px,1.9vw,19px);color:var(--muted);max-width:70ch;margin:0}
+.meta{margin-top:18px;font-size:13px;color:var(--faint);display:flex;flex-wrap:wrap;gap:18px}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:16px;overflow:hidden;margin:32px 0 8px}
+.stat{background:var(--card);padding:18px 20px}
+.stat .n{font-size:clamp(20px,2.7vw,28px);font-weight:800;letter-spacing:-.02em;line-height:1.1}
+.stat .l{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--faint);margin-top:6px}
+
+section{padding:40px 0 8px}
+h2{font-size:clamp(21px,2.6vw,27px);font-weight:800;letter-spacing:-.015em;margin:0 0 6px}
+.sub{color:var(--muted);margin:0 0 20px;max-width:76ch}
+h3{font-size:16px;font-weight:700;margin:26px 0 10px;letter-spacing:-.005em}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:22px 24px;margin-bottom:14px}
+.card p:last-child{margin-bottom:0}
+.card p:first-child{margin-top:0}
+.card.alert{border-color:var(--spark);border-width:2px}
+.card.alert .tag{display:inline-block;background:var(--spark);color:#fff;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;padding:3px 10px;border-radius:999px;margin-bottom:12px}
+
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:15px;background:var(--card);margin-bottom:14px}
+table{width:100%;border-collapse:collapse;font-size:14.5px;min-width:640px}
+thead th{background:var(--ink);color:#dff0ee;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;padding:11px 14px;white-space:nowrap}
+tbody td{padding:12px 14px;border-top:1px solid var(--hair);vertical-align:top}
+tbody tr.win{background:var(--green-soft)}
+tbody tr.bad{background:var(--red-soft)}
+td.n{white-space:nowrap;font-variant-numeric:tabular-nums}
+code{font-family:ui-monospace,'Cascadia Code',Consolas,monospace;font-size:.88em;background:var(--gray-soft);padding:1px 5px;border-radius:4px;word-break:break-word}
+
+.pill{display:inline-block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.p-crit{background:var(--red-soft);color:var(--red-ink)}
+.p-high{background:var(--amber-soft);color:var(--amber-ink)}
+.p-med{background:var(--gray-soft);color:var(--gray-ink)}
+.p-low{background:var(--green-soft);color:var(--green-ink)}
+.p-rec{background:var(--teal);color:#fff}
+.p-new{background:var(--spark);color:#fff}
+
+.phase{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:20px 22px;margin-bottom:12px;position:relative;overflow:hidden}
+.phase:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--mist)}
+.phase.gate:before{background:var(--spark)}
+.phase h4{margin:0 0 4px;font-size:17px;font-weight:800;letter-spacing:-.01em}
+.phase .dep{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--faint);margin-bottom:12px}
+.phase ul{margin:0;padding-left:20px}
+.phase li{margin-bottom:7px}
+.par{display:inline-block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--teal);border:1px solid var(--mist);border-radius:999px;padding:2px 8px;margin-left:8px;vertical-align:2px}
+
+ul.clean{list-style:none;padding:0;margin:0}
+ul.clean li{padding:9px 0;border-top:1px solid var(--hair);display:flex;gap:12px;align-items:flex-start}
+ul.clean li:first-child{border-top:0}
+ul.clean .box{flex:none;width:16px;height:16px;border:2px solid var(--faint);border-radius:4px;margin-top:4px}
+ul.clean li.done .box{background:var(--teal);border-color:var(--teal);position:relative}
+ul.clean li.done .box:after{content:"";position:absolute;left:4px;top:1px;width:5px;height:9px;border-right:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(40deg)}
+ul.clean li.block .box{border-color:var(--spark);background:var(--red-soft)}
+
+.files{font-family:ui-monospace,'Cascadia Code',Consolas,monospace;font-size:13px;line-height:1.75;white-space:pre;overflow-x:auto;margin:0}
+.files .add{color:var(--green-ink);font-weight:700}
+.files .del{color:var(--red-ink);text-decoration:line-through}
+.files .mod{color:var(--amber-ink);font-weight:700}
+.note{border-left:3px solid var(--spark);padding:2px 0 2px 16px;color:var(--muted);margin:16px 0}
+.cmd{background:var(--ink);color:#c9e6e3;border-radius:12px;padding:16px 18px;font-family:ui-monospace,'Cascadia Code',Consolas,monospace;font-size:12.5px;line-height:1.7;overflow-x:auto;white-space:pre;margin:0 0 14px}
+.cmd b{color:#ffd9a0;font-weight:700}
+footer{margin-top:48px;padding:26px 0 60px;border-top:1px solid var(--hair);color:var(--faint);font-size:13px}
+</style>
+
+<div class="topbar"><div class="wrap">
+  <span class="dot"></span><span class="mark">oruga-scribe</span>
+  <span class="rev">Ultraplan rev 2 / subscription path</span>
+</div></div>
+
+<div class="wrap">
+
+<div class="hero">
+  <p class="eyebrow">Personal project / Planning artifact</p>
+  <h1>A Chrome extension that watches you work and writes the SOP</h1>
+  <p class="lede">You click through any web tool. The extension records each meaningful interaction, screenshots the state before each click, streams written narration into a side panel as you go, speaks it with ElevenLabs if you want, and at the end produces a finished Standard Operating Procedure as an editorial HTML page.</p>
+  <div class="meta">
+    <span>rev 2, 2026-08-14</span>
+    <span>C:\Users\chuck\Desktop\oruga-scribe</span>
+    <span>Chrome 151, Node 24, claude 2.1.219</span>
+    <span>Research: 5 agents plus 2 adversarial verifiers</span>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="n">0</div><div class="l">API keys needed</div></div>
+  <div class="stat"><div class="n">1.9 s</div><div class="l">To first word, measured</div></div>
+  <div class="stat"><div class="n">3.3 s</div><div class="l">Narration call, measured</div></div>
+  <div class="stat"><div class="n">7</div><div class="l">Phases</div></div>
+  <div class="stat"><div class="n">30</div><div class="l">Files to create</div></div>
+  <div class="stat"><div class="n">1</div><div class="l">Open decision</div></div>
+</div>
+
+<section>
+  <p class="eyebrow">What changed in rev 2</p>
+  <h2>The subscription replaces the API key</h2>
+  <div class="card">
+    <p>Alejandro's call: the relay drives his already logged-in Claude Code instead of holding an Anthropic API key. It is his laptop and the SOPs are for him, so there is no reason to pay per token or to manage a secret. This is correct, and the research confirmed it works, but it moved the engineering in ways that were not obvious until the numbers came in.</p>
+    <p><b>Deleted outright:</b> the relay <code>.env</code> for Anthropic, the dollar spend ledger, all explicit <code>cache_control</code> machinery, the <code>anthropic-dangerous-direct-browser-access</code> header, the <code>host_permissions</code> entry for <code>api.anthropic.com</code>, and the entire Chrome Web Store track (BYOK settings UI, privacy policy, Limited Use disclosure). The extension's only egress is now <code>http://127.0.0.1:&lt;port&gt;</code>.</p>
+    <p><b>Made mandatory:</b> the relay. A browser extension cannot spawn a local process, so something has to host the CLI. It now holds no Anthropic secret at all, which is a strict improvement over rev 1.</p>
+    <p><b>Died on contact with evidence:</b> the Agent SDK. It looked like the answer because it keeps one warm subprocess across turns. It is not worth it at v1: it bundles its own CLI (2.1.170 against the global 2.1.219) and the same model alias resolves to <b>different actual models</b> across the two, which is a silent-wrong-model hazard for 102 packages of dependency in exchange for roughly 1.5 seconds. Revisit only if the panel feels laggy in real use.</p>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">Blocking decision</p>
+  <h2>The logged-in seat belongs to Promise</h2>
+  <div class="card alert">
+    <span class="tag">Needs Alejandro</span>
+    <p>The Claude Code login on this machine is <code>dev01@promise.ai</code>, the Promise Claude Team seat. <b>oruga-scribe is a personal project.</b> Every narration call and every SOP synthesis would draw on company quota, which runs straight into the never-mix-companies rule.</p>
+    <p>The rate limit event confirms it is org managed with no headroom: <code>{"rateLimitType":"five_hour","overageStatus":"rejected","overageDisabledReason":"org_level_disabled"}</code>. That means hitting the five hour window is a <b>hard stop mid-recording</b>, not a spend-more fallback, and the quota is pooled with interactive Claude Code and Claude chat.</p>
+    <p>Three ways out, and this is a decision rather than a finding: <b>(a)</b> accept it, since most tools worth documenting are Promise tools anyway; <b>(b)</b> point the relay at a separate personal login using an isolated <code>CLAUDE_CONFIG_DIR</code>, the same trick already used for the Kimi tunnel; <b>(c)</b> keep an API key for oruga-scribe only, so personal work never touches Promise quota. The architecture is identical in all three. Only the auth source and one env var change.</p>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">Section 01</p>
+  <h2>Executive summary</h2>
+  <div class="card">
+    <p>Build a Manifest V3 Chrome extension plus a localhost relay. The extension captures interactions from a content script, screenshots the viewport through a single throttled scheduler, and holds all session state in a side panel document. The relay spawns <code>claude -p</code> per call, one profile for live narration on Haiku 4.5 and one for end-of-session synthesis, and enforces the redaction gate and the quota guards. Live narration covers debounced groups of one to three settled steps. The SOP is one call over a list you pruned by hand, rendered to an editorial HTML page plus Markdown, zipped through <code>chrome.downloads</code>.</p>
+    <p>Three platform facts from rev 1 still drive the architecture. <b>The side panel owns the session, not the service worker</b>, because the worker dies after 30 seconds idle and an open panel does not keep it alive. <b>Declare <code>host_permissions: ["&lt;all_urls&gt;"]</code> instead of <code>activeTab</code></b>, because <code>activeTab</code> is silently revoked on cross-origin navigation. <b>Never accumulate screenshots in context.</b></p>
+    <p>Rev 2 adds a fourth, and it is the single highest-leverage line in the whole build: <b>set <code>MAX_THINKING_TOKENS=0</code> in the child environment on the narration path.</b> Extended thinking is on by default in this install, it is not disabled by <code>--safe-mode</code>, not by <code>effortLevel</code> in settings.json, and only weakly by <code>--effort low</code>. On a pure transcription task it was burning about 2.5 seconds and 540 of 649 output tokens per call. Turning it off took a narration call from 10.8 seconds to 3.3 seconds and time to first visible word from 10.4 seconds to 1.9 seconds. Nothing else in this plan comes close to that.</p>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">Section 02</p>
+  <h2>Measured, not estimated</h2>
+  <p class="sub">Two adversarial verifiers re-ran the load-bearing measurements independently, on this machine, with their own harnesses. Both found real errors in the first pass. These are the corrected numbers.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Measurement</th><th>Result</th><th>Why it matters</th></tr></thead>
+    <tbody>
+      <tr class="bad"><td>Narration call, thinking on (the default)</td><td class="n">7.6 to 10.8 s wall<br>7.2 to 10.4 s to first word</td><td>Unusable. This is what you get if you do nothing, and the first pass nearly shipped it because its probe counted <code>thinking_delta</code> as a text token</td></tr>
+      <tr class="win"><td>Narration call, <code>MAX_THINKING_TOKENS=0</code></td><td class="n">3.3 s wall<br>1.9 s to first word<br>116 output tokens</td><td>Workable. One env var, 3x faster, 5.6x fewer output tokens</td></tr>
+      <tr><td>Process cold start, spawn to <code>system/init</code></td><td class="n">1.35 to 1.9 s</td><td>Paid on every call because each is a fresh process. 25 to 30 percent of wall clock. A warm-up spawn at record start hides the worst of it</td></tr>
+      <tr><td>Adding a 1280x800 screenshot</td><td class="n">+0.77 s to first word<br>+1.4 s wall</td><td>About 4.7 s for an image-bearing step. Fine on 8 of 40 steps</td></tr>
+      <tr><td>Streaming, thinking off</td><td class="n">deltas at 1.86, 2.19, 2.50, 2.82 s</td><td>Genuinely incremental. With thinking on, all 23 deltas bunched into the last 400 ms, so the panel looked frozen for 5 s</td></tr>
+      <tr><td>Isolated input floor, <code>--tools=</code></td><td class="n">200 to 268 tokens</td><td>Against 49,367 tokens of CLAUDE.md, MEMORY.md, MCP definitions and skill list if you forget the isolation flags. That is $0.49 on the first call</td></tr>
+      <tr><td>Image tokens</td><td class="n">(w x h) / 750</td><td>Confirmed to within 2 percent: 1024x640 measured 854 against 874 predicted. Long edge is downscaled to about 1568 px</td></tr>
+      <tr><td>Vision is real, proven by nonce</td><td class="n">5 of 5 exact</td><td>Five runtime-random strings, unguessable and present only in the pixels, came back character exact. The no-image negative control correctly returned <code>NO-IMAGE-RECEIVED</code> instead of confabulating</td></tr>
+      <tr><td>Prompt caching across separate spawns</td><td class="n">works</td><td>The claim that per-call subprocesses get zero caching was refuted: <code>cache_read_input_tokens</code> = 6235 on later spawns. The zeros came from a prefix under the ~1024 token minimum. This removes the main argument for a persistent session</td></tr>
+      <tr><td>Session equivalent cost</td><td class="n">~$0.47 list-equivalent<br>synthesis is 84 percent</td><td>No dollars are actually charged. It matters only as a quota proxy, and it says to route the synthesis model, not to batch narration harder</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note">Both verifiers were told to default to refuted if they could not reproduce. The image finding survived intact and got stronger. The latency finding was refuted and rebuilt: the original probe had classified silent thinking as visible output, which is exactly why the thinking fix was missed on the first pass.</div>
+</section>
+
+<section>
+  <p class="eyebrow">Section 03</p>
+  <h2>Two dangerous silent failures</h2>
+  <p class="sub">Both return exit code 0, <code>subtype: success</code>, <code>is_error: false</code>, and empty stderr. For a tool whose entire output is a document someone will follow, silent corruption is worse than a crash.</p>
+  <div class="card">
+    <h3 style="margin-top:0">1. Tall images are silently mangled</h3>
+    <p>A 1280x5000 capture came back reading perfectly authoritative and with <b>every single field corrupted</b>: <code>FAULT-ZIOT II</code> for <code>FAULT-Z30T1I</code>, <code>Reticulum POKY</code> for <code>Reticulate PXWY</code>, <code>zeptylene</code> for <code>zephyrine</code>, <code>Rushdown</code> for <code>thaddeus</code>, <code>inc CRUD-GCHT4</code> for <code>rev CWQ-QQHH4</code>. Token math proves the mechanism: the billed 878 tokens matches a 401x1568 downscale, not the 1280x5000 that was sent. The long edge gets squeezed to about 1568 px and the text turns to mush that the model then confidently reads wrong.</p>
+    <p><b>Guard, non-negotiable:</b> in the relay, before encoding, reject or tile anything past roughly 2:1 aspect, hard cap the long edge at 1568 px, and target 1024x640 WebP. Viewport captures are naturally about 16:10 so this mostly bites if full-page capture is ever added.</p>
+    <h3>2. Corrupt base64 fails without failing</h3>
+    <p>Truncating the base64 in half gave exit 0, success, no error, empty stderr. The only evidence was inside the assistant text: <code>API Error: an image in the conversation could not be processed and was removed.</code></p>
+    <p><b>Guard:</b> string match that phrase in the response, <b>and</b> plant a sentinel instruction so a missing image makes the model emit <code>NO-IMAGE-RECEIVED</code>. Both halves verified working. Never trust the exit code on an image call.</p>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">Section 04</p>
+  <h2>How a recorded step actually works</h2>
+  <p class="sub">Unchanged from rev 1, and still the hardest bug in this class of tool. Capture after the click and the frame shows the destination page attributed to the click that left it. Capture before and the menu is not open yet.</p>
+  <div class="card">
+    <ul class="clean">
+      <li><span class="box"></span><div><b>Rolling frame.</b> Capture the viewport at most every 1000 ms while idle and hold it as <code>lastFrame</code>. A free before-image that costs no quota at click time.</div></li>
+      <li><span class="box"></span><div><b>On pointerdown</b> (capture phase, passive), synchronously serialize the target descriptor: tag, role, accessible name, bounding rect, nearest heading or landmark, frame URL, page title. By <code>click</code> the node is often already gone.</div></li>
+      <li><span class="box"></span><div><b>On click, start a settle race.</b> MutationObserver quiet for 400 ms with a 2500 ms ceiling, versus <code>webNavigation.onCommitted</code>, versus rAF plus <code>requestIdleCallback</code>. First to fire wins.</div></li>
+      <li><span class="box"></span><div><b>If navigation won</b>, attribute the step to the old page using the URL and title from pointerdown, then capture the new page on first paint and label it "result of step N". Never as the next step's before-image.</div></li>
+      <li><span class="box"></span><div><b>If settle won</b>, capture the after-frame.</div></li>
+      <li><span class="box"></span><div><b>Diff.</b> Downscale both to 32x32 grayscale and sum the absolute difference. Below threshold with no mutations, mark <code>low_signal</code> as a candidate for auto-prune.</div></li>
+      <li><span class="box"></span><div><b>Persist.</b> JPEG q80 out of <code>captureVisibleTab</code>, transcode to WebP q80 at 1024x640 for the model and 1600 px max for the document, write to IndexedDB keyed by step id.</div></li>
+      <li><span class="box"></span><div><b>One 550 ms-gap scheduler for every capture.</b> A quota miss degrades the step to <code>frame:reused</code>. It never loses the step.</div></li>
+    </ul>
+  </div>
+  <h3>Design answers, carried forward</h3>
+  <div class="card">
+    <p><b>Live narration in groups, not per click.</b> You asked for narration while we work, and live output is the only early warning that capture has broken. But at step 2 the model cannot know that "clicked Settings" was the opening move of "rotate the Slack token". So narration covers debounced groups of one to three settled steps and is treated as disposable. The SOP is always re-synthesized at the end over the pruned list.</p>
+    <p><b>Debounce floor is 6 to 8 seconds</b>, revised up from 5. With a 3.3 s text call and a 4.7 s image call, 6 s is a workable duty cycle under single flight and 8 s is comfortable. Never two concurrent spawns: while a call is in flight, merge newly arriving steps into the next payload instead of queueing another process.</p>
+    <p><b>The goal field is mandatory and blocking.</b> One field doing four jobs: highest-value token for narration quality, the SOP title, the origin allowlist scope, and the company tag that keeps Promise, Sesh, VCC and Price Point out of each other's output. Typed notes on a hotkey per step, yes. Voice memos, no.</p>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">Section 05</p>
+  <h2>The two spawn profiles</h2>
+  <p class="sub">Verified against claude 2.1.219 on Windows. Both spawn the native executable with an args array and <code>shell:false</code>, with all user content arriving over stdin.</p>
+  <div class="cmd"><b># narration, fires every 6 to 8 s, images inline as base64</b>
+env: MAX_THINKING_TOKENS=0
+claude -p --input-format stream-json --output-format stream-json --verbose
+  --include-partial-messages
+  --model claude-haiku-4-5
+  --permission-mode dontAsk --tools=
+  --strict-mcp-config --mcp-config "{\"mcpServers\":{}}" --setting-sources=
+  --disable-slash-commands
+  --system-prompt-file prompts/narrate-system.txt
+  &lt; one JSONL line: text blocks plus optional image block
+
+<b># synthesis, once per session</b>
+claude -p --output-format json --verbose
+  --model claude-sonnet-5            # opus-5 is an opt-in checkbox
+  --permission-mode dontAsk --tools=
+  --strict-mcp-config --setting-sources= --disable-slash-commands
+  --system-prompt-file prompts/sop-system.txt
+  --max-budget-usd 1.00
+  &lt; the pruned step log</div>
+  <div class="card">
+    <h3 style="margin-top:0">Flag traps, all verified the hard way</h3>
+    <ul style="margin:0;padding-left:20px">
+      <li><b><code>--verbose</code> is required</b> with <code>-p</code> plus <code>stream-json</code>, or the process exits immediately with an error. Guaranteed half hour lost if undocumented.</li>
+      <li><b><code>--bare</code> is disqualified.</b> It looks like the perfect isolation flag but auth becomes strictly <code>ANTHROPIC_API_KEY</code> or <code>apiKeyHelper</code>, and OAuth and the keychain are never read. On a subscription it hard-fails with "Not logged in". Assemble isolation from the granular flags instead.</li>
+      <li><b><code>--safe-mode</code> does not override <code>model: opus[1m]</code> from settings.json.</b> A run that looked fully isolated was silently executing on Opus 5 with a 1M context. Always pass <code>--model</code> explicitly.</li>
+      <li><b>No Read tool.</b> Images go inline as base64 content blocks, which needs no filesystem and no tools. Enabling Read costs about 6.0k input tokens of scaffolding plus two extra turns, and it would turn the child's cwd into a Claude Code project that writes session JSONL and auto-memory outside the redaction gate.</li>
+      <li><b>Windows spawn hazard.</b> <code>claude</code> on PATH is a shell script with .cmd and .ps1 siblings; <code>shell:true</code> makes cmd.exe concatenate args unescaped and silently mutilate multiline prompts. Short static argv, content via stdin, persona via <code>--system-prompt-file</code>, empty-valued flags as single tokens. Kill orphans with <code>taskkill /T /F</code>.</li>
+      <li><b><code>--system-prompt-file</code> works but is not in the top-level help.</b> Do not conclude from a quick <code>--help</code> read that it does not exist.</li>
+      <li><b>Read usage from the JSON <code>result</code> event</b>, which also carries <code>ttft_ms</code>. <code>total_cost_usd</code> is synthetic on a subscription. The real quota signal is <code>rate_limit_event</code>.</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">Section 06</p>
+  <h2>Execution plan</h2>
+  <p class="sub">Seven phases. Items marked parallel have no dependency on each other.</p>
+
+  <div class="phase">
+    <h4>Phase 0. Scaffold and decide</h4>
+    <div class="dep">No dependencies</div>
+    <ul>
+      <li><b>0.1</b> Folder, README, local <code>git init</code>, no remote. <code>.gitignore</code> for <code>.env</code>, <code>out/</code>, <code>captures/</code>, the ARISE harness, and the relay's scratch dir.</li>
+      <li><b>0.2</b> Install <code>/arise</code> in Personal mode with MemPalace as the per-project backend.</li>
+      <li><b>0.3</b> <b>Settle the account boundary</b> from the red box above. Everything else is identical either way, but it decides one env var and whether an API key exists at all.</li>
+      <li><b>0.4</b> Check <code>chrome://policy</code> for <code>runtime_blocked_hosts</code>. Five minutes, and it can invalidate the target list before any code is written.</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <h4>Phase 1. Skeleton and relay spine <span class="par">3 parallel</span></h4>
+    <div class="dep">Depends on Phase 0</div>
+    <ul>
+      <li><b>1.1</b> <code>manifest.json</code> plus side panel shell. Permissions: <code>sidePanel</code>, <code>storage</code>, <code>unlimitedStorage</code>, <code>downloads</code>, <code>scripting</code>, <code>webNavigation</code>, <code>tabs</code>, <code>host_permissions: ["&lt;all_urls&gt;"]</code>. Only egress is localhost. <code>debugger</code> in <code>optional_permissions</code> only.</li>
+      <li><b>1.2</b> Relay spine: Express on <code>127.0.0.1</code>, Origin checked against the extension id, plus <code>claude.js</code> (executable resolution with a loud banner on miss, two spawn profiles, stdin writer, NDJSON stdout reader, stderr capture, timeout, orphan kill).</li>
+      <li><b>1.3</b> Step schema ported from <code>@puppeteer/replay</code> (click, change, navigate, with selectors as an ordered fallback array) plus the IndexedDB blob layer.</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <h4>Phase 2. Capture engine <span class="par">3 parallel</span></h4>
+    <div class="dep">Depends on 1.1 and 1.3</div>
+    <ul>
+      <li><b>2.1</b> Content script at <code>document_start</code>, <code>all_frames</code>, <code>match_origin_as_fallback</code>, <code>match_about_blank</code>. Window listeners, capture phase, passive, keyed by <code>sender.frameId</code>. MAIN-world script via <code>chrome.scripting.registerContentScripts</code> patching <code>attachShadow</code> to force open mode.</li>
+      <li><b>2.2</b> Accessible name via bundled <code>dom-accessibility-api</code>, plus the descriptor bundle <code>{role, accName, tag, text, testId, cssPath, xpath, bbox}</code>. Never a single CSS selector.</li>
+      <li><b>2.3</b> Capture scheduler, settle race, navigation branch, 32x32 frame diff, and the <b>aspect ratio and long-edge guard</b> from Section 03.</li>
+    </ul>
+  </div>
+
+  <div class="phase gate">
+    <h4>Phase 3. Redaction gate</h4>
+    <div class="dep">Depends on Phase 2. Blocks every outbound call.</div>
+    <ul>
+      <li><b>3.1</b> Never capture: <code>input[type=password]</code>, any <code>autocomplete</code> of current-password, new-password, cc-number, cc-csc, cc-exp, one-time-code, and anything inside <code>[data-redact]</code>.</li>
+      <li><b>3.2</b> Field values are opt-in. Default payload is type, label, placeholder, and <code>filled: true</code>.</li>
+      <li><b>3.3</b> Regex sweep over every outbound string: email, JWT, bearer, <code>sk-</code>, <code>pk-</code>, <code>ghp_</code>, <code>xox*-</code>, <code>AKIA</code>, Luhn-valid cards, SSN, E.164, and hex or base64 runs over 32 chars. URL scrub drops fragment, userinfo, and token-shaped query params.</li>
+      <li><b>3.4</b> Image redaction: <code>getBoundingClientRect()</code> for flagged elements, scaled by devicePixelRatio, <code>fillRect</code> solid black on an OffscreenCanvas. Not <code>blur()</code>: low-radius blur over text is partially recoverable.</li>
+      <li><b>3.5</b> Fail closed. If the scrubber throws, drop the step. Plus the "show me exactly what gets sent" preview before the first call of every session.</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <h4>Phase 4. Panel, narration, voice <span class="par">3 parallel</span></h4>
+    <div class="dep">Depends on Phase 3</div>
+    <ul>
+      <li><b>4.1</b> Panel step list with edit, prune, reorder, delete, replace-screenshot. The human prune is non-negotiable: quality gate and second privacy gate.</li>
+      <li><b>4.2</b> Live narration. The narration spawn profile, <code>MAX_THINKING_TOKENS=0</code>, 6 to 8 s debounce, single-flight merge queue, warm-up spawn at record start. Panel reads NDJSON lines over a chunked response and filters to <code>delta.type === "text_delta"</code>, dropping thinking and signature deltas. Output length capped in the prompt, since output length dominates latency more than architecture does.</li>
+      <li><b>4.3</b> Voice. ElevenLabs Flash v2.5, opt-in toggle, queued off the click path. Character-level alignment drives text highlighting in the panel. <code>speechSynthesis</code> as the zero-cost fallback. This is now the only remaining API key in the project.</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <h4>Phase 5. SOP synthesis and output</h4>
+    <div class="dep">Depends on Phase 4</div>
+    <ul>
+      <li><b>5.1</b> One synthesis call over the pruned list, Sonnet 5 by default with Opus 5 as a per-session checkbox, since synthesis is 84 percent of session load. System prompt hard-constrains it to the log: no invented steps, buttons, field names, URLs or expected results; ambiguity becomes <code>[verify: ...]</code>; empty sections say "None recorded". English, imperative, no em dashes or en dashes.</li>
+      <li><b>5.2</b> Renderer: editorial HTML plus Markdown, brand tokens driven by the session's company tag so a personal SOP does not wear Promise colors. Zip with <code>fflate</code>, mint the blob URL in the panel (it does not exist in the worker), ship via <code>chrome.downloads</code> with <code>conflictAction: 'uniquify'</code>.</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <h4>Phase 6. Harden and verify <span class="par">2 parallel</span></h4>
+    <div class="dep">Depends on Phase 5</div>
+    <ul>
+      <li><b>6.1</b> Recovery and quota: every step to IndexedDB before ack, session resumable after worker death or browser crash. <code>quota.js</code> parses <code>rate_limit_event</code> on every call, and when status is not allowed it keeps capturing locally and surfaces <code>resetsAt</code> so the SOP can still be synthesized later. Empty-result fallback scans the session JSONL. Restricted-page and blocked-host banners.</li>
+      <li><b>6.2</b> A golden-path smoke test that runs in 60 seconds, model ids pinned in one config constant, then a real recording of a real tool end to end.</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">Section 07</p>
+  <h2>Risk matrix</h2>
+  <p class="sub">Rev 2 deletes the dollar-runaway row and adds five rows that only exist because of the subscription path.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Risk</th><th>Prob</th><th>Impact</th><th>Failure mode</th><th>Mitigation</th></tr></thead>
+    <tbody>
+      <tr><td>Tall-image silent corruption <span class="pill p-new">new</span></td><td class="n"><span class="pill p-med">Med</span></td><td class="n"><span class="pill p-crit">Critical</span></td><td>A 1280x5000 frame returned success with every field wrong, reading authoritative. A wrong SOP that looks right is worse than a crash.</td><td>Aspect ratio and 1568 px long-edge guard in the relay before encoding, target 1024x640</td></tr>
+      <tr><td>Shared quota hard stop <span class="pill p-new">new</span></td><td class="n"><span class="pill p-high">Med-high</span></td><td class="n"><span class="pill p-crit">Critical</span></td><td>Org-managed seat with <code>overageStatus: rejected</code>. Exhausting the five hour window blocks narration mid-recording with no auto-retry, and the pool is shared with interactive work.</td><td>Settle the account decision, route synthesis to Sonnet 5, per-session call caps, degrade to local-capture-only on a rate limit event, banner when an interactive session is busy</td></tr>
+      <tr><td>Capture quota</td><td class="n"><span class="pill p-high">High</span></td><td class="n"><span class="pill p-crit">Critical</span></td><td><code>captureVisibleTab</code> is capped at 2 per second. Pre plus post per click breaks on any click faster than one per second.</td><td>One serialized 550 ms scheduler, rolling <code>lastFrame</code>, degrade to <code>frame:reused</code></td></tr>
+      <tr><td>Managed profile blocks injection</td><td class="n"><span class="pill p-high">Med-high</span></td><td class="n"><span class="pill p-crit">Critical</span></td><td><code>runtime_blocked_hosts</code> blocks the content script silently, no error, on exactly the admin consoles worth documenting.</td><td>Check <code>chrome://policy</code> first, personal profile, 1.5 s heartbeat with a "no capture on this host" banner</td></tr>
+      <tr><td>Privacy and cross-company</td><td class="n"><span class="pill p-med">Med</span></td><td class="n"><span class="pill p-crit">Critical</span></td><td>An admin-console screenshot reaching the model is irreversible. Keys on screen, someone's inbox, Sesh data in a Promise SOP.</td><td>Mandatory goal plus company tag plus origin allowlist, loud pause off-allowlist, Phase 3 gate, company tag pins the output directory</td></tr>
+      <tr><td>Silent base64 failure <span class="pill p-new">new</span></td><td class="n"><span class="pill p-med">Med</span></td><td class="n"><span class="pill p-high">High</span></td><td>Truncated image data gives exit 0, success, empty stderr, and a narration written from nothing.</td><td>String match "could not be processed and was removed" plus a NO-IMAGE sentinel in the prompt</td></tr>
+      <tr><td>Wrong model silently <span class="pill p-new">new</span></td><td class="n"><span class="pill p-med">Med</span></td><td class="n"><span class="pill p-high">High</span></td><td><code>--safe-mode</code> does not override <code>model: opus[1m]</code> from settings.json, so narration runs on Opus 5 with a 1M context while looking isolated.</td><td>Always pass <code>--model</code> explicitly, assert the model back from the result event, pin ids in one constant</td></tr>
+      <tr><td>Screenshot timing</td><td class="n"><span class="pill p-high">High</span></td><td class="n"><span class="pill p-high">High</span></td><td>Post-click capture lands after navigation and shows the destination attributed to the click that left the page.</td><td>The settle race and navigation branch in Section 04</td></tr>
+      <tr><td>Service worker death</td><td class="n"><span class="pill p-high">High</span></td><td class="n"><span class="pill p-high">High</span></td><td>Worker terminates after 30 s idle, globals lost. An open side panel does not keep it alive.</td><td>Panel owns the state machine, worker is a thin router, IndexedDB write before ack</td></tr>
+      <tr><td>Spawn latency <span class="pill p-new">new</span></td><td class="n"><span class="pill p-high">High</span></td><td class="n"><span class="pill p-med">Med</span></td><td>1.35 to 1.9 s cold start on every call, plus a materially slower first call after a reboot or a Claude Code auto-update. Overlapping calls stack Node processes.</td><td><code>MAX_THINKING_TOKENS=0</code>, warm-up spawn at record start, 6 to 8 s debounce floor, single-flight merge queue, hard timeout, <code>taskkill /T /F</code></td></tr>
+      <tr><td>Storage quota</td><td class="n"><span class="pill p-high">High</span></td><td class="n"><span class="pill p-med">Med</span></td><td><code>storage.local</code> caps at 10 MB, about 65 steps. <code>storage.session</code> is in-memory and useless for recovery.</td><td>IndexedDB blobs plus <code>unlimitedStorage</code>, WebP q80, index only in <code>storage.local</code></td></tr>
+      <tr><td>Step explosion and noise</td><td class="n"><span class="pill p-high">High</span></td><td class="n"><span class="pill p-med">Med</span></td><td>300 clicks, scroll spam, accidental double-clicks, clicks on nothing.</td><td>Ignore scroll and hover, coalesce under 350 ms on the same target, <code>low_signal</code>, mandatory human prune</td></tr>
+      <tr><td>Narration collapse</td><td class="n"><span class="pill p-high">High</span></td><td class="n"><span class="pill p-med">Med</span></td><td>"Clicked a button" forty times, because the model does not know the intent.</td><td>Per group send the stated goal, page title, URL path, nearest heading, role plus accessible name, and the last three step summaries</td></tr>
+      <tr><td>Invisible interactions</td><td class="n"><span class="pill p-med">Med</span></td><td class="n"><span class="pill p-med">Med</span></td><td>Closed shadow DOM truncates <code>composedPath()</code>. Native selects, file pickers and OS dialogs appear in neither events nor screenshots. Canvas apps have no target node.</td><td><code>attachShadow</code> patch, host plus cropped region fallback, "focus left the document" emits a <code>manual_step</code>, canvas degrades to coordinates plus frame</td></tr>
+      <tr><td>Rot in six months</td><td class="n"><span class="pill p-high">High</span></td><td class="n"><span class="pill p-med">Med</span></td><td>Selector strategy breaks, CLI flags change under an auto-update, model aliases drift.</td><td>Descriptors as source of truth, one 60 s golden-path test, flags and model ids in one pinned constant</td></tr>
+      <tr><td>Restricted pages</td><td class="n"><span class="pill p-high">High</span></td><td class="n"><span class="pill p-low">Low-med</span></td><td>No injection on <code>chrome://</code>, the Web Store, other extensions' pages, the PDF viewer.</td><td>Detect and show "recording paused, restricted page"</td></tr>
+      <tr><td>Scope creep</td><td class="n"><span class="pill p-high">High</span></td><td class="n"><span class="pill p-med">Med</span></td><td>Replay and automation, team sharing, a hosted editor, multi-browser.</td><td>v1 is record, review, one output on disk. Replay is a different product</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note">Deleted from rev 1: the $250 cost-runaway row and every Chrome Web Store row. With the subscription inside, this is a local single-user tool permanently, so Store distribution is off the table by construction rather than by scope choice.</div>
+</section>
+
+<section>
+  <p class="eyebrow">Section 08</p>
+  <h2>Quota model, replacing the dollar model</h2>
+  <div class="tw"><table>
+    <thead><tr><th>Workload</th><th>Model</th><th>Calls per session</th><th>Share of load</th></tr></thead>
+    <tbody>
+      <tr><td>Live narration, groups of 1 to 3 steps</td><td><code>claude-haiku-4-5</code></td><td class="n">15 to 25</td><td class="n">16 percent</td></tr>
+      <tr class="win"><td>SOP synthesis, once</td><td><code>claude-sonnet-5</code> default</td><td class="n">1</td><td class="n">84 percent</td></tr>
+      <tr><td>SOP synthesis, opt-in upgrade</td><td><code>claude-opus-5</code></td><td class="n">1</td><td class="n">the reason it is a checkbox</td></tr>
+      <tr><td>Whole session, list-price equivalent</td><td></td><td class="n">~26</td><td class="n">~$0.47 synthetic, $0 billed</td></tr>
+    </tbody>
+  </table></div>
+  <div class="card">
+    <p><b>The guard that matters is model routing on synthesis, not batching narration harder.</b> Narration is about $0.03 of synthetic equivalent per session, so coarsening the debounce to save quota is not supported by the numbers. The one synthesis call is where the bite is, which is why Sonnet 5 is the default and Opus 5 is a deliberate click.</p>
+    <p><b>Degrade, do not die.</b> When <code>rate_limit_event</code> comes back with status other than allowed, the relay stops calling but the extension keeps capturing and screenshotting locally, surfaces <code>resetsAt</code> in the panel, and lets the SOP be synthesized after the window resets. Losing narration should never lose the recording.</p>
+    <p><b>Warn about interactive sessions, gate only synthesis.</b> Narration is cheap enough to just run. Before the synthesis call, if an interactive Claude Code session is busy, offer run now or queue until idle, and default to queue.</p>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">Section 09</p>
+  <h2>Files affected</h2>
+  <div class="card">
+  <p class="files">Created, all new. Nothing outside this folder is modified.
+<span class="add">green = new in rev 2</span>   <span class="mod">amber = rewritten from rev 1</span>   <span class="del">struck = deleted from rev 1</span>
+
+oruga-scribe/
+  README.md
+  ultraplan.html                  this page
+  .gitignore
+  extension/
+    manifest.json                 <span class="mod">no api.anthropic.com host permission, localhost only</span>
+    sw.js                         thin event router only
+    content/
+      capture.js                  pointerdown descriptor, settle race
+      accname.js                  bundled dom-accessibility-api wrapper
+      shadow-patch.js             MAIN world, forces attachShadow open
+      redact-dom.js               capture-time field skipping
+    panel/
+      panel.html
+      panel.css                   editorial tokens
+      panel.js                    session state machine, owns everything
+      steps-ui.js                 edit, prune, reorder, replace
+      stream.js                   <span class="mod">NDJSON line reader, text_delta filter, quota display</span>
+      voice.js                    ElevenLabs queue plus alignment highlight
+    lib/
+      schema.js                   ported from @puppeteer/replay
+      idb.js                      blob store
+      shot.js                     OffscreenCanvas crop, blackout, WebP
+      guard.js                    <span class="add">aspect ratio and 1568px long-edge enforcement</span>
+      diff.js                     32x32 grayscale frame diff
+      zip.js                      fflate wrapper
+      export.js                   markdown plus HTML render plus download
+    icons/                        16, 48, 128
+  relay/
+    package.json                  no Anthropic dependency, child_process only
+    server.js                     Express on 127.0.0.1, origin check
+    claude.js                     <span class="add">exe resolution, 2 spawn profiles, stdin, NDJSON reader, timeout, orphan kill</span>
+    session.js                    <span class="add">per-recording id, resume policy, scratch cwd lifecycle</span>
+    jsonl.js                      <span class="add">empty-result fallback, scans the session transcript</span>
+    quota.js                      <span class="mod">was ledger.js: call caps, rate_limit_event, degrade policy</span>
+    routes/narrate.js             <span class="mod">spawner, haiku, MAX_THINKING_TOKENS=0, inline base64 images</span>
+    routes/synthesize.js          <span class="mod">spawner, sonnet default, opus opt-in, max-budget-usd</span>
+    routes/tts.js                 ElevenLabs REST
+    scrub.js                      fail-closed redaction, blocks every outbound call
+    prompts/sop-system.txt        the SOP system prompt
+    prompts/narrate-system.txt    <span class="add">narration persona, as a FILE never as argv</span>
+    .env.example                  <span class="mod">ELEVENLABS_API_KEY only, the Anthropic line is gone</span>
+    <span class="del">.env with ANTHROPIC_API_KEY</span>
+    <span class="del">ledger.js dollar spend cap</span>
+  out/                            gitignored, generated SOPs land here
+
+NET: 26 files in rev 1, 30 in rev 2. Added 5, removed 1, rewritten in place 6.</p>
+  </div>
+  <div class="note">The only API key left in the entire project is ElevenLabs, for voice, which is opt-in. If voice slips to v1.1 then <code>.env.example</code>, <code>routes/tts.js</code> and <code>panel/voice.js</code> all disappear and the project holds no secrets at all.</div>
+</section>
+
+<section>
+  <p class="eyebrow">Section 10</p>
+  <h2>Approval checklist</h2>
+  <div class="card">
+    <ul class="clean">
+      <li class="done"><span class="box"></span><div>Ownership decided: personal, folder <code>oruga-scribe</code></div></li>
+      <li class="done"><span class="box"></span><div>Narration decided: live text in the panel, ElevenLabs voice opt-in</div></li>
+      <li class="done"><span class="box"></span><div>Output decided: editorial HTML page, plus Markdown as the portable twin</div></li>
+      <li class="done"><span class="box"></span><div>Auth decided: the logged-in subscription, no Anthropic API key</div></li>
+      <li class="done"><span class="box"></span><div>Latency measured and solved: <code>MAX_THINKING_TOKENS=0</code>, 1.9 s to first word</div></li>
+      <li class="done"><span class="box"></span><div>Vision transport proven: inline base64, no Read tool, no disk</div></li>
+      <li class="block"><span class="box"></span><div><b>Account boundary: Promise seat versus personal tool. Alejandro decides.</b></div></li>
+      <li><span class="box"></span><div>Plan approved</div></li>
+      <li><span class="box"></span><div><code>chrome://policy</code> checked for <code>runtime_blocked_hosts</code></div></li>
+      <li><span class="box"></span><div>Target tool named for the first real recording</div></li>
+      <li><span class="box"></span><div><code>/arise</code> installed, Personal mode, MemPalace backend</div></li>
+      <li><span class="box"></span><div>Redaction preview verified by eye before the first call</div></li>
+      <li><span class="box"></span><div>End to end run on a real tool, SOP page reviewed</div></li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  <p>oruga-scribe ultraplan rev 2, 2026-08-14. Local planning artifact: not deployed, not published, not pushed. Rev 2 replaces the API key with the logged-in Claude Code subscription. Research: 5 parallel agents covering MV3 platform limits, local prior art, open-source reuse, the model and voice layer, and risk, plus 2 adversarial verifiers that re-measured latency and vision independently and corrected both.</p>
+</footer>
+
+</div>

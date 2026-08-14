@@ -1,0 +1,34 @@
+# secrets
+.env
+.env.local
+*.key
+*.pem
+
+# the isolated Claude config dir with the personal login lives here, never committed
+relay/.claude-home/
+relay/scratch/
+
+# generated output
+out/
+captures/
+
+# memory harness
+.arise/
+.mempalace/
+MEMORY.md.bak
+
+# node
+node_modules/
+npm-debug.log*
+pnpm-debug.log*
+
+# extension build artifacts
+extension/dist/
+*.zip
+*.crx
+*.pem
+
+# os
+Thumbs.db
+desktop.ini
+.DS_Store
