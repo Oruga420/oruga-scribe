@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>oruga-scribe: Ultraplan rev 2</title>
+<title>oruga-scribe: Ultraplan rev 2.1</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -90,7 +90,7 @@ footer{margin-top:48px;padding:26px 0 60px;border-top:1px solid var(--hair);colo
 
 <div class="topbar"><div class="wrap">
   <span class="dot"></span><span class="mark">oruga-scribe</span>
-  <span class="rev">Ultraplan rev 2 / subscription path</span>
+  <span class="rev">Ultraplan rev 2.1 / phase 0 done</span>
 </div></div>
 
 <div class="wrap">
@@ -100,7 +100,7 @@ footer{margin-top:48px;padding:26px 0 60px;border-top:1px solid var(--hair);colo
   <h1>A Chrome extension that watches you work and writes the SOP</h1>
   <p class="lede">You click through any web tool. The extension records each meaningful interaction, screenshots the state before each click, streams written narration into a side panel as you go, speaks it with ElevenLabs if you want, and at the end produces a finished Standard Operating Procedure as an editorial HTML page.</p>
   <div class="meta">
-    <span>rev 2, 2026-08-14</span>
+    <span>rev 2.1, 2026-08-14</span>
     <span>C:\Users\chuck\Desktop\oruga-scribe</span>
     <span>Chrome 151, Node 24, claude 2.1.219</span>
     <span>Research: 5 agents plus 2 adversarial verifiers</span>
@@ -112,8 +112,8 @@ footer{margin-top:48px;padding:26px 0 60px;border-top:1px solid var(--hair);colo
   <div class="stat"><div class="n">1.9 s</div><div class="l">To first word, measured</div></div>
   <div class="stat"><div class="n">3.3 s</div><div class="l">Narration call, measured</div></div>
   <div class="stat"><div class="n">7</div><div class="l">Phases</div></div>
-  <div class="stat"><div class="n">30</div><div class="l">Files to create</div></div>
-  <div class="stat"><div class="n">1</div><div class="l">Open decision</div></div>
+  <div class="stat"><div class="n">31</div><div class="l">Files to create</div></div>
+  <div class="stat"><div class="n">0</div><div class="l">Open decisions</div></div>
 </div>
 
 <section>
@@ -128,14 +128,31 @@ footer{margin-top:48px;padding:26px 0 60px;border-top:1px solid var(--hair);colo
 </section>
 
 <section>
-  <p class="eyebrow">Blocking decision</p>
-  <h2>The logged-in seat belongs to Promise</h2>
-  <div class="card alert">
-    <span class="tag">Needs Alejandro</span>
-    <p>The Claude Code login on this machine is <code>dev01@promise.ai</code>, the Promise Claude Team seat. <b>oruga-scribe is a personal project.</b> Every narration call and every SOP synthesis would draw on company quota, which runs straight into the never-mix-companies rule.</p>
-    <p>The rate limit event confirms it is org managed with no headroom: <code>{"rateLimitType":"five_hour","overageStatus":"rejected","overageDisabledReason":"org_level_disabled"}</code>. That means hitting the five hour window is a <b>hard stop mid-recording</b>, not a spend-more fallback, and the quota is pooled with interactive Claude Code and Claude chat.</p>
-    <p>Three ways out, and this is a decision rather than a finding: <b>(a)</b> accept it, since most tools worth documenting are Promise tools anyway; <b>(b)</b> point the relay at a separate personal login using an isolated <code>CLAUDE_CONFIG_DIR</code>, the same trick already used for the Kimi tunnel; <b>(c)</b> keep an API key for oruga-scribe only, so personal work never touches Promise quota. The architecture is identical in all three. Only the auth source and one env var change.</p>
+  <p class="eyebrow">Resolved in rev 2.1</p>
+  <h2>The account boundary, settled and verified</h2>
+  <div class="card">
+    <p>The Claude Code login on this machine is <code>dev01@promise.ai</code>, the Promise Claude Team seat, and oruga-scribe is personal. The rate limit event confirmed it is org managed with no headroom: <code>{"rateLimitType":"five_hour","overageStatus":"rejected","overageDisabledReason":"org_level_disabled"}</code>, so exhausting the five hour window is a hard stop mid-recording and the pool is shared with interactive work.</p>
+    <p><b>Decision: the relay runs against an isolated <code>CLAUDE_CONFIG_DIR</code> with a personal login.</b> No Promise quota, no company mixing, and still no API key. Same trick already in use for the Kimi tunnel.</p>
+    <p><b>Verified working on claude 2.1.219.</b> The control call against the default config returned <code>is_error: false</code> on the Promise seat. The same call with <code>CLAUDE_CONFIG_DIR</code> pointed at an empty <code>relay/.claude-home</code> returned <code>is_error: true</code>, <code>terminal_reason: "api_error"</code>, zero tokens, and built a fresh <code>.claude.json</code> plus <code>projects/</code> and <code>sessions/</code> skeleton. Failing on an empty directory is the proof that it is not reading the default profile. Setup lives in <code>relay/README-auth.md</code>.</p>
+    <p><b>One manual step remains</b>, because an OAuth login cannot be automated: run <code>CLAUDE_CONFIG_DIR="$PWD/relay/.claude-home" claude</code> once from the repo root and <code>/login</code> with the personal account.</p>
   </div>
+</section>
+
+<section>
+  <p class="eyebrow">Phase 0 findings</p>
+  <h2>Two checks that came back clean, one that changed the build</h2>
+  <div class="card">
+    <p><b>No Chrome enterprise policy on this machine.</b> All three registry roots are absent: no <code>runtime_blocked_hosts</code>, no <code>ExtensionSettings</code>, no <code>ExtensionInstallBlocklist</code>. The silent-injection-failure risk is cleared for the local profile. It returns only if Chrome itself is signed in to the cloud-managed Promise profile, so record in the personal profile.</p>
+    <p><b><code>--system-prompt-file</code> turned out to be a behavior fix, not a token optimization.</b> This was found while validating the spawn profile and it is the second most valuable line in the build after <code>MAX_THINKING_TOKENS=0</code>. Without it the CLI loads its own agent persona:</p>
+  </div>
+  <div class="tw"><table>
+    <thead><tr><th>Narration call, identical input</th><th>Input tokens</th><th>Output tokens</th><th>API duration</th><th>Result text</th></tr></thead>
+    <tbody>
+      <tr class="bad"><td>No <code>--system-prompt-file</code></td><td class="n">6,316</td><td class="n">486</td><td class="n">6,136 ms</td><td>agent flavored chatter</td></tr>
+      <tr class="win"><td>With <code>--system-prompt-file</code></td><td class="n">149</td><td class="n">8</td><td class="n">2,361 ms</td><td><code>Saved the invoice.</code></td></tr>
+    </tbody>
+  </table></div>
+  <div class="note">60x fewer output tokens and 2.6x faster, but the output column is the real finding. The isolation flags alone (<code>--tools=</code>, <code>--setting-sources=</code>, <code>--strict-mcp-config</code>) do not remove the Claude Code system prompt. Only replacing it does.</div>
 </section>
 
 <section>
@@ -213,7 +230,7 @@ footer{margin-top:48px;padding:26px 0 60px;border-top:1px solid var(--hair);colo
   <h2>The two spawn profiles</h2>
   <p class="sub">Verified against claude 2.1.219 on Windows. Both spawn the native executable with an args array and <code>shell:false</code>, with all user content arriving over stdin.</p>
   <div class="cmd"><b># narration, fires every 6 to 8 s, images inline as base64</b>
-env: MAX_THINKING_TOKENS=0
+env: MAX_THINKING_TOKENS=0, CLAUDE_CONFIG_DIR=relay/.claude-home
 claude -p --input-format stream-json --output-format stream-json --verbose
   --include-partial-messages
   --model claude-haiku-4-5
@@ -223,7 +240,8 @@ claude -p --input-format stream-json --output-format stream-json --verbose
   --system-prompt-file prompts/narrate-system.txt
   &lt; one JSONL line: text blocks plus optional image block
 
-<b># synthesis, once per session</b>
+<b># synthesis, once per session, thinking left ON</b>
+env: CLAUDE_CONFIG_DIR=relay/.claude-home
 claude -p --output-format json --verbose
   --model claude-sonnet-5            # opus-5 is an opt-in checkbox
   --permission-mode dontAsk --tools=
@@ -239,7 +257,7 @@ claude -p --output-format json --verbose
       <li><b><code>--safe-mode</code> does not override <code>model: opus[1m]</code> from settings.json.</b> A run that looked fully isolated was silently executing on Opus 5 with a 1M context. Always pass <code>--model</code> explicitly.</li>
       <li><b>No Read tool.</b> Images go inline as base64 content blocks, which needs no filesystem and no tools. Enabling Read costs about 6.0k input tokens of scaffolding plus two extra turns, and it would turn the child's cwd into a Claude Code project that writes session JSONL and auto-memory outside the redaction gate.</li>
       <li><b>Windows spawn hazard.</b> <code>claude</code> on PATH is a shell script with .cmd and .ps1 siblings; <code>shell:true</code> makes cmd.exe concatenate args unescaped and silently mutilate multiline prompts. Short static argv, content via stdin, persona via <code>--system-prompt-file</code>, empty-valued flags as single tokens. Kill orphans with <code>taskkill /T /F</code>.</li>
-      <li><b><code>--system-prompt-file</code> works but is not in the top-level help.</b> Do not conclude from a quick <code>--help</code> read that it does not exist.</li>
+      <li><b><code>--system-prompt-file</code> is mandatory on both paths and is not in the top-level help.</b> Without it the CLI loads its own agent persona: 6,316 input tokens, 486 output tokens and agent chatter, against 149 input, 8 output and the correct sentence. Do not conclude from a quick <code>--help</code> read that the flag does not exist.</li>
       <li><b>Read usage from the JSON <code>result</code> event</b>, which also carries <code>ttft_ms</code>. <code>total_cost_usd</code> is synthetic on a subscription. The real quota signal is <code>rate_limit_event</code>.</li>
     </ul>
   </div>
@@ -256,9 +274,10 @@ claude -p --output-format json --verbose
     <ul>
       <li><b>0.1</b> Folder, README, local <code>git init</code>, no remote. <code>.gitignore</code> for <code>.env</code>, <code>out/</code>, <code>captures/</code>, the ARISE harness, and the relay's scratch dir.</li>
       <li><b>0.2</b> Install <code>/arise</code> in Personal mode with MemPalace as the per-project backend.</li>
-      <li><b>0.3</b> <b>Settle the account boundary</b> from the red box above. Everything else is identical either way, but it decides one env var and whether an API key exists at all.</li>
-      <li><b>0.4</b> Check <code>chrome://policy</code> for <code>runtime_blocked_hosts</code>. Five minutes, and it can invalidate the target list before any code is written.</li>
+      <li><b>0.3</b> Account boundary settled: isolated <code>CLAUDE_CONFIG_DIR</code> with a personal login, verified working.</li>
+      <li><b>0.4</b> Chrome policy checked: all three registry roots absent, no blocked hosts. Clear to inject.</li>
     </ul>
+    <p style="margin:12px 0 0;font-size:13px;color:var(--green-ink);font-weight:700">DONE. Folder, README, .gitignore, local git init with no remote, relay/README-auth.md, policy check, config isolation verified. One manual login step pending.</p>
   </div>
 
   <div class="phase">
@@ -418,12 +437,14 @@ oruga-scribe/
     scrub.js                      fail-closed redaction, blocks every outbound call
     prompts/sop-system.txt        the SOP system prompt
     prompts/narrate-system.txt    <span class="add">narration persona, as a FILE never as argv</span>
+    README-auth.md                <span class="add">isolated CLAUDE_CONFIG_DIR setup, verified</span>
+    .claude-home/                 <span class="add">gitignored, personal login lives here</span>
     .env.example                  <span class="mod">ELEVENLABS_API_KEY only, the Anthropic line is gone</span>
     <span class="del">.env with ANTHROPIC_API_KEY</span>
     <span class="del">ledger.js dollar spend cap</span>
   out/                            gitignored, generated SOPs land here
 
-NET: 26 files in rev 1, 30 in rev 2. Added 5, removed 1, rewritten in place 6.</p>
+NET: 26 files in rev 1, 31 in rev 2.1. Added 6, removed 1, rewritten in place 6.</p>
   </div>
   <div class="note">The only API key left in the entire project is ElevenLabs, for voice, which is opt-in. If voice slips to v1.1 then <code>.env.example</code>, <code>routes/tts.js</code> and <code>panel/voice.js</code> all disappear and the project holds no secrets at all.</div>
 </section>
@@ -439,9 +460,10 @@ NET: 26 files in rev 1, 30 in rev 2. Added 5, removed 1, rewritten in place 6.</
       <li class="done"><span class="box"></span><div>Auth decided: the logged-in subscription, no Anthropic API key</div></li>
       <li class="done"><span class="box"></span><div>Latency measured and solved: <code>MAX_THINKING_TOKENS=0</code>, 1.9 s to first word</div></li>
       <li class="done"><span class="box"></span><div>Vision transport proven: inline base64, no Read tool, no disk</div></li>
-      <li class="block"><span class="box"></span><div><b>Account boundary: Promise seat versus personal tool. Alejandro decides.</b></div></li>
-      <li><span class="box"></span><div>Plan approved</div></li>
-      <li><span class="box"></span><div><code>chrome://policy</code> checked for <code>runtime_blocked_hosts</code></div></li>
+      <li class="done"><span class="box"></span><div>Account boundary settled: isolated config dir, personal login, no Promise quota</div></li>
+      <li class="done"><span class="box"></span><div>Plan approved, build started</div></li>
+      <li class="done"><span class="box"></span><div>Chrome policy checked: no blocked hosts on this machine</div></li>
+      <li class="block"><span class="box"></span><div><b>Manual: <code>/login</code> once in the isolated config dir with the personal account</b></div></li>
       <li><span class="box"></span><div>Target tool named for the first real recording</div></li>
       <li><span class="box"></span><div><code>/arise</code> installed, Personal mode, MemPalace backend</div></li>
       <li><span class="box"></span><div>Redaction preview verified by eye before the first call</div></li>
@@ -451,7 +473,7 @@ NET: 26 files in rev 1, 30 in rev 2. Added 5, removed 1, rewritten in place 6.</
 </section>
 
 <footer>
-  <p>oruga-scribe ultraplan rev 2, 2026-08-14. Local planning artifact: not deployed, not published, not pushed. Rev 2 replaces the API key with the logged-in Claude Code subscription. Research: 5 parallel agents covering MV3 platform limits, local prior art, open-source reuse, the model and voice layer, and risk, plus 2 adversarial verifiers that re-measured latency and vision independently and corrected both.</p>
+  <p>oruga-scribe ultraplan rev 2.1, 2026-08-14. Local planning artifact: not deployed, not published, not pushed. Rev 2 replaced the API key with the logged-in Claude Code subscription. Rev 2.1 settles the account boundary on an isolated config dir, records the Phase 0 checks, and adds the <code>--system-prompt-file</code> finding. Research: 5 parallel agents covering MV3 platform limits, local prior art, open-source reuse, the model and voice layer, and risk, plus 2 adversarial verifiers that re-measured latency and vision independently and corrected both.</p>
 </footer>
 
 </div>
