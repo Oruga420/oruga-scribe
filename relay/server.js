@@ -39,15 +39,30 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return end(res, 204, '')
   if (!allowed) return json(res, 403, { ok: false, error: 'origin not allowed: ' + origin })
 
+  // `return await`, not `return`. Returning a promise from inside try/catch resolves it
+  // OUTSIDE the try, so a rejected route became an unhandled rejection and Node killed the
+  // whole relay. From the extension that looked like "Failed to fetch" with no explanation.
   try {
-    if (req.url === '/health') return health(res)
-    if (req.url === '/narrate' && req.method === 'POST') return narrate(req, res)
-    if (req.url === '/synthesize' && req.method === 'POST') return synthesize(req, res)
-    if (req.url === '/preview' && req.method === 'POST') return preview(req, res)
+    if (req.url === '/health') return await health(res)
+    if (req.url === '/narrate' && req.method === 'POST') return await narrate(req, res)
+    if (req.url === '/synthesize' && req.method === 'POST') return await synthesize(req, res)
+    if (req.url === '/preview' && req.method === 'POST') return await preview(req, res)
     return json(res, 404, { ok: false, error: 'no such route' })
   } catch (e) {
+    console.error('  route error on ' + req.url + ': ' + (e && e.stack || e))
     return json(res, 500, { ok: false, error: String(e && e.message || e) })
   }
+})
+
+/**
+ * A relay that dies takes the recording session's narration with it and shows up in the panel
+ * as an unexplained "Failed to fetch". Log loudly, stay alive.
+ */
+process.on('unhandledRejection', (e) => {
+  console.error('\n  UNHANDLED REJECTION (relay staying up): ' + (e && e.stack || e) + '\n')
+})
+process.on('uncaughtException', (e) => {
+  console.error('\n  UNCAUGHT EXCEPTION (relay staying up): ' + (e && e.stack || e) + '\n')
 })
 
 // --- routes -----------------------------------------------------------------
@@ -58,8 +73,7 @@ function health(res) {
   let detail = ''
   try {
     exe = C.resolveExe()
-    loggedIn = fs.existsSync(path.join(C.configDir(), 'credentials.json'))
-      || hasOauth(path.join(C.configDir(), '.claude.json'))
+    loggedIn = C.isLoggedIn()
   } catch (e) {
     detail = e.message
   }
@@ -227,9 +241,14 @@ server.listen(PORT, HOST, () => {
     if (hasOauth(path.join(C.configDir(), '.claude.json'))) authNote = 'logged in'
   } catch {}
   console.log('')
+  const isolated = path.resolve(C.configDir()) === path.resolve(path.join(__dirname, '.claude-home'))
   console.log('  oruga-scribe relay')
   console.log('  listening   http://' + HOST + ':' + PORT)
   console.log('  config dir  ' + C.configDir())
+  if (!isolated) {
+    console.log('              WARNING: this is NOT the project isolated dir.')
+    console.log('              If it is the machine default, calls spend the Promise seat.')
+  }
   console.log('  auth        ' + authNote)
   console.log('  output      ' + OUT_DIR)
   console.log('')

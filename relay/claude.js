@@ -17,7 +17,7 @@
  *   - Spawn the native .exe with shell:false. A .cmd through cmd.exe silently mutilates args.
  */
 
-const { spawn, execFile } = require('node:child_process')
+const { spawn, execFile, execFileSync } = require('node:child_process')
 const path = require('node:path')
 const fs = require('node:fs')
 
@@ -75,6 +75,36 @@ function resolveExe() {
 function configDir() {
   return process.env.SCRIBE_CLAUDE_CONFIG_DIR
     || path.join(__dirname, '.claude-home')
+}
+
+let loginCache = { at: 0, value: false }
+
+/**
+ * Ask the CLI, do not guess from files.
+ *
+ * The first version checked for `oauthAccount` inside .claude.json, which is wrong: a logged in
+ * config does not necessarily carry that key, so /health reported "not logged in" on a config
+ * that worked perfectly. `claude auth status` is the authoritative answer.
+ *
+ * Cached for 15s because it spawns a process and /health is polled every 5s by the panel.
+ */
+function isLoggedIn() {
+  const now = Date.now()
+  if (now - loginCache.at < 15_000) return loginCache.value
+  let value = false
+  try {
+    const out = execFileSync(resolveExe(), ['auth', 'status'], {
+      env: { ...process.env, CLAUDE_CONFIG_DIR: configDir() },
+      encoding: 'utf8',
+      timeout: 20_000,
+      windowsHide: true,
+    })
+    value = /"loggedIn"\s*:\s*true/.test(out)
+  } catch {
+    value = false
+  }
+  loginCache = { at: now, value }
+  return value
 }
 
 function assertLoggedIn() {
@@ -294,8 +324,18 @@ function run(profile, stdinPayload, opts = {}) {
       if (ev.type === 'result') resultEvent = ev
     }
 
+    // Two output shapes, two readers.
+    //   narrate   --output-format stream-json  -> NDJSON, one event per line, read as it streams
+    //   synthesize --output-format json        -> ONE JSON document, possibly pretty printed
+    //
+    // The first version line-split both. For the json profile that consumed a pretty printed
+    // document line by line, failed to parse each fragment, and reported "returned no text"
+    // on an exit code 0 run that had actually produced the whole SOP.
+    const isNdjson = profile === 'narrate'
+
     child.stdout.on('data', (d) => {
       stdoutBuf += d
+      if (!isNdjson) return       // accumulate, parse once at close
       let nl
       while ((nl = stdoutBuf.indexOf('\n')) >= 0) {
         const line = stdoutBuf.slice(0, nl)
@@ -314,9 +354,30 @@ function run(profile, stdinPayload, opts = {}) {
     ))
 
     child.on('close', (code) => {
-      // For --output-format json the whole result is one object, not NDJSON events.
-      if (!resultEvent && stdoutBuf.trim()) {
-        try { handleEvent(JSON.parse(stdoutBuf.trim())) } catch { /* ignore */ }
+      const leftover = stdoutBuf.trim()
+      if (!resultEvent && leftover) {
+        // Whole document first. If --verbose printed anything alongside it, fall back to the
+        // outermost {...} span rather than giving up and reporting an empty result.
+        let parsed = null
+        try { parsed = JSON.parse(leftover) } catch { /* try harder below */ }
+        if (!parsed) {
+          const a = leftover.indexOf('{')
+          const b = leftover.lastIndexOf('}')
+          if (a >= 0 && b > a) {
+            try { parsed = JSON.parse(leftover.slice(a, b + 1)) } catch { /* give up */ }
+          }
+        }
+        // `--output-format json --verbose` emits a JSON ARRAY of events, not one result
+        // object. The first version parsed the array fine and then handed the whole array to
+        // handleEvent, which found no .type on it and dropped a SOP that had been generated
+        // perfectly. Exit code 0, real output, reported as "returned no text".
+        if (Array.isArray(parsed)) {
+          for (const ev of parsed) {
+            try { handleEvent(ev) } catch { /* ignore one bad event */ }
+          }
+        } else if (parsed) {
+          try { handleEvent(parsed) } catch { /* ignore */ }
+        }
       }
 
       // Empty results happen. Three way fallback before giving up.
@@ -388,6 +449,7 @@ async function warmUp() {
 module.exports = {
   run,
   warmUp,
+  isLoggedIn,
   buildUserMessage,
   detectImageFailure,
   resolveExe,
