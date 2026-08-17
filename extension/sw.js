@@ -1,0 +1,403 @@
+/**
+ * Service worker. Deliberately thin.
+ *
+ * It does NOT own the session. It terminates after 30s idle and loses every global, and
+ * an open side panel does not keep it alive. So: the panel owns state, this routes events
+ * and captures pixels, and every step is written to IndexedDB before it is acknowledged.
+ */
+
+import { makeStep, makeSession, STEP_TYPES, SIGNAL, scrubUrl } from './lib/schema.js'
+import * as idb from './lib/idb.js'
+import * as shot from './lib/shot.js'
+
+// --- capture scheduler ------------------------------------------------------
+
+/**
+ * MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND is 2. Exceeding it rejects the call.
+ * Everything funnels through here so a fast clicker degrades a frame instead of
+ * throwing away a step.
+ */
+const MIN_GAP_MS = 550
+let lastCaptureAt = 0
+let captureChain = Promise.resolve()
+
+function scheduleCapture(windowId) {
+  const run = async () => {
+    const wait = MIN_GAP_MS - (Date.now() - lastCaptureAt)
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait))
+    lastCaptureAt = Date.now()
+    try {
+      return await chrome.tabs.captureVisibleTab(windowId, { format: 'jpeg', quality: 80 })
+    } catch (e) {
+      // Quota, a restricted page, or a minimized window. Never fatal.
+      return null
+    }
+  }
+  captureChain = captureChain.then(run, run)
+  return captureChain
+}
+
+// --- rolling frame ----------------------------------------------------------
+
+/**
+ * A viewport capture taken while idle. This is the free "before" image: at click time we
+ * already have it, so a click costs one capture (the after) instead of two.
+ */
+const rolling = new Map() // tabId -> {dataUrl, at}
+const ROLLING_MS = 1000
+
+async function refreshRolling(tabId, windowId) {
+  const cur = rolling.get(tabId)
+  if (cur && Date.now() - cur.at < ROLLING_MS) return cur.dataUrl
+  const dataUrl = await scheduleCapture(windowId)
+  if (dataUrl) rolling.set(tabId, { dataUrl, at: Date.now() })
+  return dataUrl || (cur && cur.dataUrl) || null
+}
+
+// --- live recording state (a cache, never the source of truth) --------------
+
+let live = null // {sessionId, tabId, windowId, pending: Map<seq, partial>}
+
+async function loadSession(id) {
+  return id ? idb.getSession(id) : null
+}
+
+async function saveStep(sessionId, step) {
+  const s = await idb.getSession(sessionId)
+  if (!s) return null
+  const i = s.steps.findIndex((x) => x.id === step.id)
+  if (i >= 0) s.steps[i] = step
+  else s.steps.push(step)
+  await idb.putSession(s)          // write BEFORE ack, always
+  return s
+}
+
+function notifyPanel(msg) {
+  chrome.runtime.sendMessage(Object.assign({ to: 'oruga-panel' }, msg)).catch(() => {})
+}
+
+// --- origin allowlist -------------------------------------------------------
+
+/**
+ * A recording declares its origins up front. Wandering off them pauses loudly rather than
+ * quietly hoovering up a different company's console.
+ */
+function originOf(url) {
+  try { return new URL(url).origin } catch { return '' }
+}
+
+async function checkOrigin(session, url) {
+  const origin = originOf(url)
+  if (!origin) return { ok: false, reason: 'unparseable url' }
+  if (!session.originAllowlist.length) {
+    session.originAllowlist.push(origin)
+    await idb.putSession(session)
+    return { ok: true }
+  }
+  if (session.originAllowlist.includes(origin)) return { ok: true }
+  return { ok: false, reason: 'off allowlist: ' + origin }
+}
+
+// --- step assembly ----------------------------------------------------------
+
+async function beginStep(desc, tabId, windowId) {
+  if (!live) return
+  const session = await loadSession(live.sessionId)
+  if (!session || session.paused) return
+
+  const gate = await checkOrigin(session, desc.url)
+  if (!gate.ok) {
+    session.paused = true
+    session.pauseReason = gate.reason
+    await idb.putSession(session)
+    notifyPanel({ kind: 'paused', reason: gate.reason })
+    return
+  }
+
+  const beforeUrl = await refreshRolling(tabId, windowId)
+  const step = makeStep({
+    type: desc.type === 'change' ? STEP_TYPES.CHANGE
+      : desc.type === 'key' ? STEP_TYPES.KEY : STEP_TYPES.CLICK,
+    seq: desc.seq,
+    pageTitle: desc.pageTitle,
+    url: desc.url,
+    section: desc.section,
+    target: desc.target,
+    selectors: desc.selectors,
+    field: desc.field || null,
+  })
+
+  if (beforeUrl) {
+    try {
+      const stored = await shot.toStorageFrame(beforeUrl)
+      const key = step.id + '-before'
+      await idb.putFrame(key, stored.blob)
+      step.beforeFrame = key
+    } catch { /* a step without a frame is still a step */ }
+  } else {
+    step.signal = SIGNAL.REUSED
+  }
+
+  live.pending.set(desc.seq, {
+    step,
+    dpr: desc.dpr || 1,
+    redactRects: desc.redactRects || [],
+    beforeUrl,
+  })
+
+  await saveStep(live.sessionId, step)
+  notifyPanel({ kind: 'step', step })
+}
+
+async function finishStep(seq, tabId, windowId, freshRects) {
+  if (!live) return
+  const held = live.pending.get(seq)
+  if (!held) return
+  live.pending.delete(seq)
+
+  const afterUrl = await scheduleCapture(windowId)
+  const step = held.step
+
+  if (afterUrl) {
+    try {
+      const stored = await shot.toStorageFrame(afterUrl)
+      const key = step.id + '-after'
+      await idb.putFrame(key, stored.blob)
+      step.afterFrame = key
+      rolling.set(tabId, { dataUrl: afterUrl, at: Date.now() })
+
+      if (step.beforeFrame) {
+        const beforeBlob = await idb.getFrame(step.beforeFrame)
+        const d = await shot.frameDiff(beforeBlob, stored.blob)
+        if (d < 0.012) step.signal = SIGNAL.LOW
+      }
+    } catch { /* keep the step */ }
+  }
+
+  // Model frame: cropped toward the target, redacted, guarded. Built now so a later
+  // narration call never touches the page again.
+  if (held.beforeUrl && step.target.bbox) {
+    try {
+      const model = await shot.toModelFrame(
+        held.beforeUrl, step.target.bbox,
+        (freshRects && freshRects.length ? freshRects : held.redactRects), held.dpr
+      )
+      const key = step.id + '-model'
+      await idb.putFrame(key, model.blob)
+      step.modelFrame = key
+    } catch (e) {
+      if (e && e.name === 'AspectGuardError') {
+        step.note = (step.note ? step.note + ' ' : '') + '[frame skipped: ' + e.message + ']'
+      }
+    }
+  }
+
+  await saveStep(live.sessionId, step)
+  notifyPanel({ kind: 'stepDone', step })
+}
+
+// --- navigation -------------------------------------------------------------
+
+chrome.webNavigation.onCommitted.addListener(async (details) => {
+  if (!live || details.tabId !== live.tabId || details.frameId !== 0) return
+  const session = await loadSession(live.sessionId)
+  if (!session || session.paused) return
+
+  const gate = await checkOrigin(session, details.url)
+  if (!gate.ok) {
+    session.paused = true
+    session.pauseReason = gate.reason
+    await idb.putSession(session)
+    notifyPanel({ kind: 'paused', reason: gate.reason })
+    return
+  }
+
+  // Any step still waiting to settle belongs to the OLD page. Close it out now with the
+  // url and title captured at pointerdown, never re-attributed to the destination.
+  for (const seq of [...live.pending.keys()]) {
+    await finishStep(seq, live.tabId, live.windowId, [])
+  }
+
+  rolling.delete(details.tabId)
+
+  const step = makeStep({
+    type: STEP_TYPES.NAVIGATE,
+    url: details.url,
+    pageTitle: '',
+    target: { name: scrubUrl(details.url) },
+  })
+  await saveStep(live.sessionId, step)
+  notifyPanel({ kind: 'step', step })
+})
+
+// --- message routing --------------------------------------------------------
+
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  if (!msg) return
+
+  // From the content script
+  if (msg.from === 'oruga-capture') {
+    const tabId = sender.tab && sender.tab.id
+    const windowId = sender.tab && sender.tab.windowId
+    if (!live || tabId !== live.tabId) return
+    const s = msg.step || {}
+    if (msg.kind === 'pointerdown') beginStep(s, tabId, windowId)
+    else if (msg.kind === 'settled') finishStep(msg.seq, tabId, windowId, msg.redactRects)
+    else if (msg.kind === 'change' || msg.kind === 'key') {
+      beginStep(s, tabId, windowId).then(() => finishStep(s.seq, tabId, windowId, []))
+    }
+    return
+  }
+
+  // From the panel
+  if (msg.to === 'oruga-sw') {
+    handlePanel(msg).then((r) => reply(r || { ok: true })).catch((e) => reply({ ok: false, error: String(e && e.message || e) }))
+    return true // async reply
+  }
+})
+
+async function handlePanel(msg) {
+  switch (msg.kind) {
+    case 'start': {
+      const tab = await activeTab()
+      if (!tab) throw new Error('no active tab')
+      if (isRestricted(tab.url)) {
+        throw new Error('cannot record this page (' + shortHost(tab.url) + '). ' +
+          'Chrome blocks extensions on chrome:// pages, the Web Store, other extensions, and the PDF viewer.')
+      }
+      const session = makeSession({
+        goal: msg.goal, company: msg.company,
+        originAllowlist: [originOf(tab.url)].filter(Boolean),
+      })
+      await idb.putSession(session)
+      live = { sessionId: session.id, tabId: tab.id, windowId: tab.windowId, pending: new Map() }
+      await chrome.storage.local.set({ liveSessionId: session.id, liveTabId: tab.id, liveWindowId: tab.windowId })
+      const reached = await setRecording(tab.id, true)
+      await refreshRolling(tab.id, tab.windowId)
+      return { ok: true, session, framesReached: reached }
+    }
+    case 'stop': {
+      if (!live) return { ok: true }
+      for (const seq of [...live.pending.keys()]) {
+        await finishStep(seq, live.tabId, live.windowId, [])
+      }
+      await setRecording(live.tabId, false).catch(() => {})
+      const session = await loadSession(live.sessionId)
+      if (session) {
+        session.endedAt = new Date().toISOString()
+        await idb.putSession(session)
+      }
+      live = null
+      await chrome.storage.local.remove(['liveSessionId', 'liveTabId', 'liveWindowId'])
+      return { ok: true, session }
+    }
+    case 'resume': {
+      // After a worker death the panel re-attaches instead of losing the recording.
+      const { liveSessionId, liveTabId, liveWindowId } = await chrome.storage.local.get(
+        ['liveSessionId', 'liveTabId', 'liveWindowId'])
+      if (!liveSessionId) return { ok: true, session: null }
+      const session = await idb.getSession(liveSessionId)
+      if (!session || session.endedAt) return { ok: true, session: null }
+      live = { sessionId: liveSessionId, tabId: liveTabId, windowId: liveWindowId, pending: new Map() }
+      await setRecording(liveTabId, true).catch(() => {})
+      return { ok: true, session }
+    }
+    case 'getSession':
+      return { ok: true, session: await idb.getSession(msg.sessionId) }
+    case 'listSessions':
+      return { ok: true, sessions: await idb.allSessions() }
+    case 'unpause': {
+      const session = await loadSession(live && live.sessionId)
+      if (session) {
+        session.paused = false
+        session.pauseReason = ''
+        if (msg.allowOrigin) session.originAllowlist.push(msg.allowOrigin)
+        await idb.putSession(session)
+      }
+      return { ok: true, session }
+    }
+    case 'updateStep': {
+      const session = await idb.getSession(msg.sessionId)
+      if (!session) throw new Error('no such session')
+      const i = session.steps.findIndex((s) => s.id === msg.step.id)
+      if (i >= 0) session.steps[i] = Object.assign(session.steps[i], msg.step)
+      await idb.putSession(session)
+      return { ok: true }
+    }
+    case 'reorderSteps': {
+      const session = await idb.getSession(msg.sessionId)
+      if (!session) throw new Error('no such session')
+      const byId = new Map(session.steps.map((s) => [s.id, s]))
+      session.steps = msg.order.map((id) => byId.get(id)).filter(Boolean)
+      await idb.putSession(session)
+      return { ok: true }
+    }
+    case 'getFrame': {
+      const blob = await idb.getFrame(msg.key)
+      if (!blob) return { ok: false }
+      // Blobs do not survive sendMessage. Hand over base64 and let the panel make the URL.
+      return { ok: true, base64: await shot.blobToBase64(blob), type: blob.type }
+    }
+    case 'purge':
+      await idb.purgeSession(msg.sessionId)
+      return { ok: true }
+    case 'storage':
+      return { ok: true, estimate: await idb.estimateBytes(), frames: await idb.frameCount() }
+    default:
+      throw new Error('unknown message ' + msg.kind)
+  }
+}
+
+async function setRecording(tabId, value) {
+  const frames = await chrome.webNavigation.getAllFrames({ tabId }).catch(() => null)
+  const ids = frames ? frames.map((f) => f.frameId) : [0]
+  let reached = 0
+  for (const frameId of ids) {
+    try {
+      await chrome.tabs.sendMessage(tabId, { to: 'oruga-capture', kind: 'setRecording', value }, { frameId })
+      reached++
+    } catch { /* a frame with no content script, or a restricted one */ }
+  }
+  return reached
+}
+
+async function activeTab() {
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true })
+  return tab
+}
+
+function isRestricted(url) {
+  if (!url) return true
+  return /^(chrome|edge|about|devtools|view-source|chrome-extension|moz-extension):/i.test(url)
+    || /^https:\/\/chromewebstore\.google\.com/i.test(url)
+    || /^https:\/\/chrome\.google\.com\/webstore/i.test(url)
+}
+
+function shortHost(url) {
+  try { return new URL(url).host || url.split(':')[0] + ':' } catch { return String(url).slice(0, 40) }
+}
+
+// --- lifecycle --------------------------------------------------------------
+
+chrome.runtime.onInstalled.addListener(async () => {
+  // The action click opens the panel. sidePanel.open() needs a user gesture, and this is
+  // the cleanest one available: the same click that opens the panel starts the session.
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {})
+
+  // MAIN world, document_start, so it beats page script to attachShadow.
+  try {
+    const existing = await chrome.scripting.getRegisteredContentScripts({ ids: ['oruga-shadow'] })
+    if (!existing.length) {
+      await chrome.scripting.registerContentScripts([{
+        id: 'oruga-shadow',
+        matches: ['<all_urls>'],
+        js: ['content/shadow-patch.js'],
+        runAt: 'document_start',
+        allFrames: true,
+        world: 'MAIN',
+      }])
+    }
+  } catch (e) {
+    console.warn('oruga-scribe: could not register the MAIN world shadow patch:', e.message)
+  }
+})

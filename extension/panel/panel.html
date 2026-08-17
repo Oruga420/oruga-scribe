@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>oruga-scribe</title>
+<link rel="stylesheet" href="panel.css">
+</head>
+<body>
+
+<header class="bar">
+  <span class="dot" id="dot"></span>
+  <strong>oruga-scribe</strong>
+  <span class="state" id="state">idle</span>
+</header>
+
+<!-- setup: shown before recording -->
+<section id="setup" class="pane">
+  <label class="lbl" for="goal">What are you about to do?</label>
+  <textarea id="goal" rows="3" placeholder="Rotate the Slack bot token for the Delphi app"></textarea>
+  <p class="hint">Required. It becomes the SOP title, it scopes which sites get recorded, and it is
+  the single biggest thing that makes the narration useful instead of forty lines of
+  "clicked a button".</p>
+
+  <label class="lbl" for="company">Whose is this?</label>
+  <select id="company">
+    <option value="personal">Personal</option>
+    <option value="promise">Promise</option>
+    <option value="sesh">Sesh</option>
+    <option value="vcc">VCC</option>
+    <option value="pricepoint">Price Point</option>
+  </select>
+  <p class="hint">Pins the output folder and the styling, and keeps one company's screenshots
+  out of another's document.</p>
+
+  <button id="start" class="primary">Start recording</button>
+  <p class="err" id="setupErr"></p>
+</section>
+
+<!-- recording -->
+<section id="rec" class="pane hidden">
+  <div class="goalbox">
+    <span class="eyebrow">Goal</span>
+    <p id="goalEcho"></p>
+  </div>
+
+  <div id="banner" class="banner hidden"></div>
+
+  <div class="row">
+    <button id="stop" class="primary">Stop and review</button>
+    <button id="note" class="ghost" title="Attach a note to the last step">Add note</button>
+  </div>
+
+  <div class="counts">
+    <span><b id="cSteps">0</b> steps</span>
+    <span><b id="cLow">0</b> low signal</span>
+    <span id="relayState" class="relay off">narration off</span>
+  </div>
+
+  <ol id="steps" class="steps"></ol>
+  <p class="empty" id="emptyMsg">Go click something. Steps show up here as you work.</p>
+</section>
+
+<!-- review -->
+<section id="review" class="pane hidden">
+  <p class="eyebrow">Review before anything is written</p>
+  <p class="hint">Delete what does not belong. This is both the quality gate and the last
+  privacy gate: whatever survives here is what gets sent.</p>
+  <div class="row">
+    <button id="synth" class="primary">Write the SOP</button>
+    <button id="back" class="ghost">Keep recording</button>
+  </div>
+  <ol id="reviewSteps" class="steps"></ol>
+</section>
+
+<template id="stepTpl">
+  <li class="step">
+    <div class="shead">
+      <span class="num"></span>
+      <span class="label"></span>
+      <button class="x" title="Remove this step">x</button>
+    </div>
+    <div class="meta"></div>
+    <img class="thumb hidden" alt="">
+    <div class="narr"></div>
+    <div class="noteline hidden"></div>
+  </li>
+</template>
+
+<script type="module" src="panel.js"></script>
+</body>
+</html>
