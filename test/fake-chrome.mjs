@@ -13,8 +13,12 @@ import { webcrypto } from 'node:crypto'
 export function makeChrome() {
   const sessionStore = new Map()
   const localStore = new Map()
-  const listeners = { message: [], navCommitted: [], installed: [] }
-  const log = { captures: 0, tabMessages: [], injected: [], panelMessages: [] }
+  const listeners = { message: [], navCommitted: [], installed: [], startup: [], actionClicked: [] }
+  const log = {
+    captures: 0, tabMessages: [], injected: [], panelMessages: [],
+    panelBehavior: [],   // every setPanelBehavior call, so the test can prove it runs on wake
+    panelOpens: [],
+  }
 
   // Tab state the test drives
   const state = {
@@ -80,10 +84,17 @@ export function makeChrome() {
       registerContentScripts: async () => {},
       getRegisteredContentScripts: async () => [],
     },
-    sidePanel: { setPanelBehavior: async () => {} },
-    onInstalled: { addListener: (fn) => listeners.installed.push(fn) },
+    sidePanel: {
+      setPanelBehavior: async (o) => { log.panelBehavior.push(o) },
+      setOptions: async () => {},
+      open: async (o) => { log.panelOpens.push(o) },
+    },
+    action: {
+      onClicked: { addListener: (fn) => listeners.actionClicked.push(fn) },
+    },
   }
   chrome.runtime.onInstalled = { addListener: (fn) => listeners.installed.push(fn) }
+  chrome.runtime.onStartup = { addListener: (fn) => listeners.startup.push(fn) }
 
   /**
    * Deliver a message the way Chrome does, returning the async reply.
@@ -115,7 +126,13 @@ export function makeChrome() {
     }
   }
 
-  return { chrome, state, log, deliver, navigate, sessionStore, localStore, listeners }
+  /** Simulate the toolbar button being clicked. */
+  async function clickAction() {
+    globalThis.chrome = chrome
+    for (const fn of listeners.actionClicked) await fn(state.tabs[0])
+  }
+
+  return { chrome, state, log, deliver, navigate, clickAction, sessionStore, localStore, listeners }
 }
 
 export function tick() { return new Promise((r) => setTimeout(r, 0)) }

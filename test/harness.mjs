@@ -211,6 +211,22 @@ assert('A4', 'the panel is told only after the step is persisted',
   panelStepMsgs.length >= 2 && got.session.steps.length >= panelStepMsgs.length - 1,
   'panel got ' + panelStepMsgs.length + ' step messages, disk has ' + got.session.steps.length)
 
+// ===== A5/A6. the toolbar button actually opens the panel =====
+// Regression: setPanelBehavior was only called inside onInstalled, which does NOT fire when
+// you reload an unpacked extension or restart the browser. It worked once on fresh install and
+// then the button did nothing, which reads as "the extension stopped opening".
+const envP = makeChrome()
+await loadWorker(envP, 'panel1')   // a plain worker wake: no onInstalled, no onStartup
+assert('A5', 'panel behavior is wired on every worker start, not only on install',
+  envP.log.panelBehavior.length > 0 && envP.log.panelBehavior[0].openPanelOnActionClick === true,
+  'setPanelBehavior was never called on a plain worker wake. The toolbar button will do nothing '
+  + 'after any extension reload.')
+
+await envP.clickAction()
+assert('A6', 'clicking the toolbar button opens the panel explicitly as a fallback',
+  envP.log.panelOpens.length > 0,
+  'action.onClicked did not open the side panel, so there is no fallback if the behavior flag is ignored')
+
 // ===== B. attaching =====
 console.log('\nB. ATTACHING TO A TAB THAT IS ALREADY OPEN')
 

@@ -464,25 +464,53 @@ function shortHost(url) {
 
 // --- lifecycle --------------------------------------------------------------
 
-chrome.runtime.onInstalled.addListener(async () => {
-  // The action click opens the panel. sidePanel.open() needs a user gesture, and this is
-  // the cleanest one available: the same click that opens the panel starts the session.
-  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {})
+/**
+ * Wire the toolbar button to the side panel.
+ *
+ * This runs at MODULE TOP LEVEL, on every worker start, not only in onInstalled.
+ *
+ * The bug this fixes: onInstalled does not fire when you reload an unpacked extension or
+ * restart the browser. Setting the panel behavior only there meant it worked on the first
+ * fresh install and then the toolbar button did nothing forever after, which looks exactly
+ * like "the extension does not open any more".
+ */
+chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
+  .catch((e) => console.warn('oruga-scribe: setPanelBehavior failed:', e && e.message))
 
-  // MAIN world, document_start, so it beats page script to attachShadow.
+/**
+ * Belt and braces. If openPanelOnActionClick is not honoured for any reason, open the panel
+ * explicitly. The action click IS the user gesture sidePanel.open() requires, so this is a
+ * legitimate call rather than a workaround.
+ */
+chrome.action.onClicked.addListener(async (tab) => {
   try {
-    const existing = await chrome.scripting.getRegisteredContentScripts({ ids: ['oruga-shadow'] })
-    if (!existing.length) {
-      await chrome.scripting.registerContentScripts([{
-        id: 'oruga-shadow',
-        matches: ['<all_urls>'],
-        js: ['content/shadow-patch.js'],
-        runAt: 'document_start',
-        allFrames: true,
-        world: 'MAIN',
-      }])
-    }
+    await chrome.sidePanel.setOptions({ path: 'panel/panel.html', enabled: true })
+    await chrome.sidePanel.open(tab && tab.windowId != null
+      ? { windowId: tab.windowId } : { tabId: tab.id })
   } catch (e) {
-    console.warn('oruga-scribe: could not register the MAIN world shadow patch:', e.message)
+    console.warn('oruga-scribe: could not open the side panel:', e && e.message)
   }
 })
+
+/** MAIN world, document_start, so it beats page script to attachShadow. */
+async function registerShadowPatch() {
+  try {
+    const existing = await chrome.scripting.getRegisteredContentScripts({ ids: ['oruga-shadow'] })
+    if (existing.length) return
+    await chrome.scripting.registerContentScripts([{
+      id: 'oruga-shadow',
+      matches: ['<all_urls>'],
+      js: ['content/shadow-patch.js'],
+      runAt: 'document_start',
+      allFrames: true,
+      world: 'MAIN',
+    }])
+  } catch (e) {
+    // Not fatal: without it, closed shadow roots degrade to host-level capture.
+    console.warn('oruga-scribe: could not register the MAIN world shadow patch:', e && e.message)
+  }
+}
+
+chrome.runtime.onInstalled.addListener(registerShadowPatch)
+chrome.runtime.onStartup.addListener(registerShadowPatch)
+registerShadowPatch()   // and on every plain worker wake, since neither event is guaranteed
