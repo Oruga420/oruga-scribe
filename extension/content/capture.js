@@ -12,6 +12,21 @@
  */
 
 const PORT_NAME = 'oruga-capture'
+
+/**
+ * Guard against a second instance. The manifest declaration runs this at document_start, and
+ * the worker also injects it with executeScript when a recording starts on a tab that was
+ * already open. Both paths can hit the same frame, and two instances would double every step.
+ */
+if (window.__orugaScribeAttached) {
+  // Already listening. Nothing to do.
+} else {
+  window.__orugaScribeAttached = true
+  attach()
+}
+
+function attach() {
+
 let recording = false
 let seq = 0
 
@@ -255,10 +270,13 @@ function settle() {
 
 function send(msg) {
   try {
-    chrome.runtime.sendMessage(Object.assign({ from: PORT_NAME }, msg))
+    const p = chrome.runtime.sendMessage(Object.assign({ from: PORT_NAME }, msg))
+    if (p && p.catch) p.catch(() => { /* worker asleep or extension reloaded */ })
+    return p
   } catch {
     // Extension reloaded or context invalidated. Stop trying, the page keeps working.
     recording = false
+    return Promise.resolve(null)
   }
 }
 
@@ -369,5 +387,18 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   return
 })
 
-// Announce presence so the panel can tell "no capture on this host" from "still loading".
+/**
+ * Announce presence and ASK whether a recording is in progress.
+ *
+ * This is what makes a navigation mid-recording work. The old document dies with its
+ * `recording` flag, and the new one starts false. Rather than the worker racing to push the
+ * flag back down at onCommitted, the new document pulls it. No race, no lost steps.
+ *
+ * It also means a tab that was already open when the extension loaded starts working the
+ * moment it is injected, without a reload.
+ */
 send({ kind: 'hello', url: location.href, top: window === window.top })
+  .then((r) => { if (r && r.recording) recording = true })
+  .catch(() => {})
+
+} // end attach()

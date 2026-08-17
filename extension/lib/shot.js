@@ -21,16 +21,33 @@ export const MODEL_H = 640
 export const MAX_ASPECT = 2.2
 
 export class AspectGuardError extends Error {
-  constructor(w, h) {
+  constructor(w, h, why) {
     super(
-      'oruga-scribe: refusing to send a ' + w + 'x' + h + ' image (aspect ' +
-      (Math.max(w, h) / Math.min(w, h)).toFixed(1) + ':1). ' +
-      'Past ' + MAX_ASPECT + ':1 the downscale destroys text and the model misreads it silently.'
+      'oruga-scribe: refusing a ' + w + 'x' + h + ' image (aspect ' +
+      (Math.max(w, h) / Math.min(w, h)).toFixed(1) + ':1). ' + (why || '') + ' ' +
+      'Past ' + MAX_ASPECT + ':1 the downscale destroys text and the model misreads it ' +
+      'while reporting success.'
     )
     this.name = 'AspectGuardError'
     this.width = w
     this.height = h
   }
+}
+
+/**
+ * Refuse anything unsafe to send. Call on the FINAL dimensions of every image that leaves.
+ *
+ * Learned from the harness: the original guard was almost dead code. It only checked the crop
+ * window, and the crop always normalized the aspect ratio to 1024x640, so a pathological
+ * source could never trip it. The check has to be on the source too, not just the output.
+ */
+export function assertSendable(w, h) {
+  const ratio = Math.max(w, h) / Math.min(w, h)
+  if (ratio > MAX_ASPECT) throw new AspectGuardError(w, h, 'Aspect ratio out of range.')
+  if (Math.max(w, h) > MAX_LONG_EDGE) {
+    throw new AspectGuardError(w, h, 'Long edge exceeds ' + MAX_LONG_EDGE + 'px.')
+  }
+  return true
 }
 
 async function toBitmap(source) {
@@ -75,6 +92,14 @@ export async function toStorageFrame(source, quality = 0.8) {
 export async function toModelFrame(source, target, redactRects = [], dpr = 1) {
   const bmp = await toBitmap(source)
   try {
+    // Guard the SOURCE, not only the crop. With no target to crop toward, a pathological
+    // source would be silently reduced to its top slice and presented as "the page".
+    const srcRatio = Math.max(bmp.width, bmp.height) / Math.min(bmp.width, bmp.height)
+    if (srcRatio > MAX_ASPECT && !(target && target.width > 0 && target.height > 0)) {
+      throw new AspectGuardError(bmp.width, bmp.height,
+        'Source is out of range and there is no click target to crop toward.')
+    }
+
     const sx = (r) => ({
       x: r.x * dpr, y: r.y * dpr, width: r.width * dpr, height: r.height * dpr,
     })
@@ -114,10 +139,10 @@ export async function toModelFrame(source, target, redactRects = [], dpr = 1) {
       cy = 0
     }
 
-    const ratio = Math.max(cw, ch) / Math.min(cw, ch)
-    if (ratio > MAX_ASPECT) throw new AspectGuardError(Math.round(cw), Math.round(ch))
+    assertSendable(Math.round(cw), Math.round(ch) > MAX_LONG_EDGE ? MAX_LONG_EDGE : Math.round(ch))
 
     const canvas = new OffscreenCanvas(MODEL_W, Math.round(MODEL_W / (cw / ch)))
+    assertSendable(canvas.width, canvas.height)   // the dimensions that actually get sent
     const ctx = canvas.getContext('2d')
     ctx.drawImage(base, cx, cy, cw, ch, 0, 0, canvas.width, canvas.height)
 

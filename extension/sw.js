@@ -54,9 +54,33 @@ async function refreshRolling(tabId, windowId) {
   return dataUrl || (cur && cur.dataUrl) || null
 }
 
-// --- live recording state (a cache, never the source of truth) --------------
+// --- live recording state ---------------------------------------------------
 
-let live = null // {sessionId, tabId, windowId, pending: Map<seq, partial>}
+/**
+ * NOT a global. This is the bug that broke the first real run: `live` was a module global,
+ * MV3 kills the worker after 30 seconds idle and takes every global with it, so the first
+ * pause in clicking silently ended the recording while the panel still said "recording".
+ *
+ * Now the pointer lives in chrome.storage.session (survives worker death, cleared on browser
+ * restart, which is correct: a recording should not outlive the browser) and the session
+ * itself lives in IndexedDB. Nothing is trusted from memory.
+ *
+ * `pending` is the one thing that can be in memory: it holds a partially built step between
+ * pointerdown and settle, a window of at most 2.5 seconds. If the worker dies inside that
+ * window the step is already persisted with its before-frame, it just never gets an
+ * after-frame, which degrades one step instead of ending the session.
+ */
+const pending = new Map() // seq -> {step, dpr, redactRects, beforeUrl}
+
+async function getLive() {
+  const s = await chrome.storage.session.get(['live'])
+  return s.live || null
+}
+
+async function setLive(value) {
+  if (value) await chrome.storage.session.set({ live: value })
+  else await chrome.storage.session.remove(['live'])
+}
 
 async function loadSession(id) {
   return id ? idb.getSession(id) : null
@@ -101,6 +125,7 @@ async function checkOrigin(session, url) {
 // --- step assembly ----------------------------------------------------------
 
 async function beginStep(desc, tabId, windowId) {
+  const live = await getLive()
   if (!live) return
   const session = await loadSession(live.sessionId)
   if (!session || session.paused) return
@@ -138,22 +163,25 @@ async function beginStep(desc, tabId, windowId) {
     step.signal = SIGNAL.REUSED
   }
 
-  live.pending.set(desc.seq, {
+  pending.set(desc.seq, {
     step,
     dpr: desc.dpr || 1,
     redactRects: desc.redactRects || [],
     beforeUrl,
   })
 
+  // Persisted BEFORE the panel is told, always. If the worker dies right here the step is
+  // already on disk.
   await saveStep(live.sessionId, step)
   notifyPanel({ kind: 'step', step })
 }
 
 async function finishStep(seq, tabId, windowId, freshRects) {
+  const live = await getLive()
   if (!live) return
-  const held = live.pending.get(seq)
+  const held = pending.get(seq)
   if (!held) return
-  live.pending.delete(seq)
+  pending.delete(seq)
 
   const afterUrl = await scheduleCapture(windowId)
   const step = held.step
@@ -199,6 +227,7 @@ async function finishStep(seq, tabId, windowId, freshRects) {
 // --- navigation -------------------------------------------------------------
 
 chrome.webNavigation.onCommitted.addListener(async (details) => {
+  const live = await getLive()
   if (!live || details.tabId !== live.tabId || details.frameId !== 0) return
   const session = await loadSession(live.sessionId)
   if (!session || session.paused) return
@@ -214,11 +243,15 @@ chrome.webNavigation.onCommitted.addListener(async (details) => {
 
   // Any step still waiting to settle belongs to the OLD page. Close it out now with the
   // url and title captured at pointerdown, never re-attributed to the destination.
-  for (const seq of [...live.pending.keys()]) {
+  for (const seq of [...pending.keys()]) {
     await finishStep(seq, live.tabId, live.windowId, [])
   }
 
   rolling.delete(details.tabId)
+
+  // The new document gets a fresh content script from the manifest, but it starts with
+  // recording=false. Turn it back on or the recording ends at the first navigation.
+  setRecording(live.tabId, true).catch(() => {})
 
   const step = makeStep({
     type: STEP_TYPES.NAVIGATE,
@@ -237,24 +270,41 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
 
   // From the content script
   if (msg.from === 'oruga-capture') {
-    const tabId = sender.tab && sender.tab.id
-    const windowId = sender.tab && sender.tab.windowId
-    if (!live || tabId !== live.tabId) return
-    const s = msg.step || {}
-    if (msg.kind === 'pointerdown') beginStep(s, tabId, windowId)
-    else if (msg.kind === 'settled') finishStep(msg.seq, tabId, windowId, msg.redactRects)
-    else if (msg.kind === 'change' || msg.kind === 'key') {
-      beginStep(s, tabId, windowId).then(() => finishStep(s.seq, tabId, windowId, []))
-    }
-    return
+    handleContent(msg, sender).then((r) => reply(r || { ok: true })).catch(() => reply({ ok: false }))
+    return true // async, because the live pointer now comes from storage
   }
 
   // From the panel
   if (msg.to === 'oruga-sw') {
     handlePanel(msg).then((r) => reply(r || { ok: true })).catch((e) => reply({ ok: false, error: String(e && e.message || e) }))
-    return true // async reply
+    return true
   }
 })
+
+async function handleContent(msg, sender) {
+  const tabId = sender.tab && sender.tab.id
+  const windowId = sender.tab && sender.tab.windowId
+  const live = await getLive()
+
+  // A fresh document announcing itself. Answering with the recording flag removes the race
+  // between a navigation committing and the new content script being ready, which is what
+  // would otherwise end a recording at the first page change.
+  if (msg.kind === 'hello') {
+    const on = !!(live && tabId === live.tabId)
+    return { ok: true, recording: on }
+  }
+
+  if (!live || tabId !== live.tabId) return { ok: true, recording: false }
+
+  const s = msg.step || {}
+  if (msg.kind === 'pointerdown') { beginStep(s, tabId, windowId); return { ok: true } }
+  if (msg.kind === 'settled') { finishStep(msg.seq, tabId, windowId, msg.redactRects); return { ok: true } }
+  if (msg.kind === 'change' || msg.kind === 'key') {
+    beginStep(s, tabId, windowId).then(() => finishStep(s.seq, tabId, windowId, []))
+    return { ok: true }
+  }
+  return { ok: true }
+}
 
 async function handlePanel(msg) {
   switch (msg.kind) {
@@ -270,24 +320,39 @@ async function handlePanel(msg) {
         originAllowlist: [originOf(tab.url)].filter(Boolean),
       })
       await idb.putSession(session)
-      live = { sessionId: session.id, tabId: tab.id, windowId: tab.windowId, pending: new Map() }
+      pending.clear()
+      await setLive({ sessionId: session.id, tabId: tab.id, windowId: tab.windowId })
       await chrome.storage.local.set({ liveSessionId: session.id, liveTabId: tab.id, liveWindowId: tab.windowId })
+
+      // A tab that was already open when the extension loaded has no content script, because
+      // manifest declarations only apply at document load. Inject now so recording works
+      // without asking the user to reload the page.
+      await ensureInjected(tab.id)
+
       const reached = await setRecording(tab.id, true)
       await refreshRolling(tab.id, tab.windowId)
       return { ok: true, session, framesReached: reached }
     }
     case 'stop': {
-      if (!live) return { ok: true }
-      for (const seq of [...live.pending.keys()]) {
-        await finishStep(seq, live.tabId, live.windowId, [])
+      const live = await getLive()
+      // Fall back to the storage.local pointer: if the browser restarted, storage.session is
+      // gone but the recording is still on disk and must be closable.
+      const ptr = live || (await chrome.storage.local.get(
+        ['liveSessionId', 'liveTabId', 'liveWindowId']).then((s) => s.liveSessionId
+          ? { sessionId: s.liveSessionId, tabId: s.liveTabId, windowId: s.liveWindowId } : null))
+      if (!ptr) return { ok: true, session: null }
+
+      for (const seq of [...pending.keys()]) {
+        await finishStep(seq, ptr.tabId, ptr.windowId, [])
       }
-      await setRecording(live.tabId, false).catch(() => {})
-      const session = await loadSession(live.sessionId)
+      pending.clear()
+      await setRecording(ptr.tabId, false).catch(() => {})
+      const session = await loadSession(ptr.sessionId)
       if (session) {
         session.endedAt = new Date().toISOString()
         await idb.putSession(session)
       }
-      live = null
+      await setLive(null)
       await chrome.storage.local.remove(['liveSessionId', 'liveTabId', 'liveWindowId'])
       return { ok: true, session }
     }
@@ -298,7 +363,8 @@ async function handlePanel(msg) {
       if (!liveSessionId) return { ok: true, session: null }
       const session = await idb.getSession(liveSessionId)
       if (!session || session.endedAt) return { ok: true, session: null }
-      live = { sessionId: liveSessionId, tabId: liveTabId, windowId: liveWindowId, pending: new Map() }
+      await setLive({ sessionId: liveSessionId, tabId: liveTabId, windowId: liveWindowId })
+      await ensureInjected(liveTabId).catch(() => {})
       await setRecording(liveTabId, true).catch(() => {})
       return { ok: true, session }
     }
@@ -307,6 +373,7 @@ async function handlePanel(msg) {
     case 'listSessions':
       return { ok: true, sessions: await idb.allSessions() }
     case 'unpause': {
+      const live = await getLive()
       const session = await loadSession(live && live.sessionId)
       if (session) {
         session.paused = false
@@ -345,6 +412,24 @@ async function handlePanel(msg) {
       return { ok: true, estimate: await idb.estimateBytes(), frames: await idb.frameCount() }
     default:
       throw new Error('unknown message ' + msg.kind)
+  }
+}
+
+/**
+ * Inject capture.js into every frame of a tab that is already open.
+ * Idempotent: capture.js guards against running twice, and executeScript on a frame that
+ * already has it is harmless.
+ */
+async function ensureInjected(tabId) {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId, allFrames: true },
+      files: ['content/capture.js'],
+    })
+    return true
+  } catch (e) {
+    // Restricted page, or the frame is gone. The caller reports framesReached: 0.
+    return false
   }
 }
 

@@ -83,7 +83,22 @@ function renderList(target, steps, opts = {}) {
 
     target.appendChild(node)
   })
-  el.emptyMsg.classList.toggle('hidden', steps.length > 0)
+
+  // An empty pane must say WHY it is empty. A blank rectangle reads as "the tool is broken"
+  // and gives no clue whether nothing was clicked, nothing attached, or everything was pruned.
+  if (!steps.length) {
+    const p = document.createElement('p')
+    p.className = 'empty'
+    const total = session ? session.steps.length : 0
+    p.textContent = total === 0
+      ? (opts.review
+        ? 'Nothing was recorded. If you were clicking, the recorder never attached to the page: '
+          + 'reload the tab and start again.'
+        : 'Go click something. Steps show up here as you work.')
+      : 'All ' + total + ' steps were removed. Undo is not built yet, so start a new recording.'
+    target.appendChild(p)
+  }
+  el.emptyMsg.classList.add('hidden')
 }
 
 async function loadThumb(key, img) {
@@ -165,11 +180,24 @@ el.start.addEventListener('click', async () => {
 })
 
 el.stop.addEventListener('click', async () => {
-  const r = await sw('stop')
-  if (r && r.session) session = r.session
+  const r = await sw('stop').catch((e) => ({ ok: false, error: String(e) }))
+  if (r && r.session) {
+    session = r.session
+  } else if (session) {
+    // The worker may have restarted and lost its pointer. Read the session straight from disk
+    // rather than showing an empty review over a recording that exists.
+    const g = await sw('getSession', { sessionId: session.id }).catch(() => null)
+    if (g && g.session) session = g.session
+  }
   setState('review', '')
   show(el.review)
-  renderList(el.reviewSteps, visibleSteps())
+  renderList(el.reviewSteps, visibleSteps(), { review: true })
+  if (r && r.ok === false && r.error) {
+    el.banner.className = 'banner bad'
+    el.banner.textContent = 'Stop reported: ' + r.error
+    el.banner.classList.remove('hidden')
+    el.review.prepend(el.banner)
+  }
 })
 
 el.back.addEventListener('click', async () => {
@@ -200,7 +228,8 @@ async function prune(id) {
   if (!step) return
   step.pruned = true
   await sw('updateStep', { sessionId: session.id, step: { id, pruned: true } })
-  renderList(el.rec.classList.contains('hidden') ? el.reviewSteps : el.steps, visibleSteps())
+  const inReview = el.rec.classList.contains('hidden')
+  renderList(inReview ? el.reviewSteps : el.steps, visibleSteps(), { review: inReview })
   renderCounts()
 }
 
