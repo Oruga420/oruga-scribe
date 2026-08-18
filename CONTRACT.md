@@ -80,3 +80,43 @@ CLAUDE_CONFIG_DIR="$PWD/relay/.claude-home" claude auth login
 Delphi is a Promise tool. Tagging its SOP `personal` puts Promise screenshots into the personal
 output folder, which is the exact thing the company tag exists to prevent. Doing it as asked, and
 noting it here so the choice is on the record rather than buried in a chat.
+
+---
+
+## Verified end to end, 2026-08-18
+
+Run: `node test/evidence.mjs`. Artifacts in `evidence/`.
+
+| # | Check | Result |
+|---|---|---|
+| B1 | Extension loads and attaches | PASS, `framesReached=3` across 3 frames |
+| B2 | Steps captured from real mouse clicks on a real site | PASS, 4 steps |
+| C1 | Review pane lists every step with its label | PASS, `06-panel-review.png` |
+| C2 | Each step shows its screenshot thumbnail | PASS, with the click target outlined in red |
+| C4 | Low signal steps are flagged | PASS, step 3 reads "nothing changed" |
+| E4 | Stop then Write the SOP produces Markdown | PASS, `out/personal/2026-08-18-12-07-08/SOP.md` |
+| F1 | A saved Delphi SOP | PASS, though it documents the sign-in wall, see below |
+
+### Platform findings, both cost a debugging round
+
+**Branded Chrome 151 does not honour `--load-extension`.** Verified by launching
+`C:\Program Files\Google\Chrome\Application\chrome.exe` directly with clean arguments and
+reading `chrome://extensions-internals`: only COMPONENT extensions were listed, ours absent.
+Chrome for Testing (Playwright's bundled chromium) does honour it and reports ours as
+`[COMMAND_LINE]`. Automated verification therefore uses Chrome for Testing.
+
+**Playwright injects `--disable-extensions`.** `launchPersistentContext` adds it by default,
+which silently defeats `--load-extension`. Confirmed by reading `chrome://version` inside the
+launched browser. The evidence run bypasses Playwright's launcher entirely and attaches over CDP.
+
+### Product bug the evidence run exposed
+
+`start` picked the active tab without checking what it was, so when the panel is served as a
+normal page it recorded ITSELF. Fixed: `activeTab()` now skips restricted and extension pages
+and falls back to the most recently accessed real tab.
+
+### Honest limit on F1
+
+The SOP documents reaching and navigating the Google IAP sign-in wall, not using Delphi, because
+a fresh browser profile has no Delphi session and no credentials were entered. A full Delphi SOP
+needs a recording made while signed in.

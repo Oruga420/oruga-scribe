@@ -446,9 +446,29 @@ async function setRecording(tabId, value) {
   return reached
 }
 
+/**
+ * The tab to record.
+ *
+ * Never our own panel, and never a chrome:// page. In production the side panel is not a tab so
+ * the active tab is always the right answer, but the panel is also servable as a normal page
+ * (which is how the evidence run drives it), and in that case the naive "active tab" is the
+ * panel itself. Recording your own UI is never what anyone wants, so skip it and fall back to
+ * the most recently active real page.
+ */
 async function activeTab() {
-  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true })
-  return tab
+  const recordable = (t) => t && t.url && !isRestricted(t.url)
+
+  const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true })
+  if (recordable(active)) return active
+
+  const [anyActive] = await chrome.tabs.query({ active: true })
+  if (recordable(anyActive)) return anyActive
+
+  // Most recently accessed recordable tab, newest first.
+  const all = await chrome.tabs.query({})
+  const candidates = all.filter(recordable)
+    .sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0))
+  return candidates[0] || active || anyActive
 }
 
 function isRestricted(url) {
