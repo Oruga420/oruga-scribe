@@ -168,14 +168,29 @@ async function narrate(req, res) {
     'cache-control': 'no-store',
   })
 
+  // Writing to a socket the client already dropped throws. The panel closes when the side panel
+  // closes or the extension reloads, which happens mid narration all the time.
+  const send = (obj) => {
+    if (res.writableEnded || res.destroyed) return false
+    try { return res.write(JSON.stringify(obj) + '\n') } catch { return false }
+  }
+
+  // If the client goes away, stop the model call too. Otherwise a closed panel keeps burning
+  // quota generating narration nobody will ever read.
+  const abort = new AbortController()
+  const onClientGone = () => abort.abort()
+  req.on('aborted', onClientGone)
+  res.on('close', () => { if (!res.writableEnded) onClientGone() })
+
   inFlight = C.run('narrate', payload, {
     hasImage: !!image,
-    onDelta: (chunk) => res.write(JSON.stringify({ t: 'delta', text: chunk }) + '\n'),
+    signal: abort.signal,
+    onDelta: (chunk) => send({ t: 'delta', text: chunk }),
   })
 
   try {
     const out = await inFlight
-    res.write(JSON.stringify({
+    send({
       t: 'done',
       text: out.text,
       imageFailed: out.imageFailed,
@@ -183,12 +198,16 @@ async function narrate(req, res) {
       rateLimit: out.rateLimit,
       timing: out.timing,
       model: out.model,
-    }) + '\n')
+    })
+    if (out.imageFailed) {
+      console.error('  an image was dropped by the model on this step; narration may be blind')
+    }
   } catch (e) {
-    res.write(JSON.stringify({ t: 'error', error: String(e.message || e) }) + '\n')
+    if (!abort.signal.aborted) send({ t: 'error', error: String(e.message || e) })
   } finally {
     inFlight = null
-    res.end()
+    req.off('aborted', onClientGone)
+    if (!res.writableEnded) res.end()
   }
 }
 
@@ -214,7 +233,10 @@ async function synthesize(req, res) {
   })
 
   const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
-  const dir = path.join(OUT_DIR, session.company || 'personal', stamp)
+  // PATH TRAVERSAL: session.company arrives in the request body, and the relay accepts
+  // arbitrary JSON, so a company of "../../Windows/Temp" would write outside out/. The panel
+  // only offers two values, but the endpoint is not the panel.
+  const dir = path.join(OUT_DIR, safeSegment(session.company), stamp)
   fs.mkdirSync(dir, { recursive: true })
   const mdPath = path.join(dir, 'SOP.md')
   fs.writeFileSync(mdPath, out.text, 'utf8')
@@ -242,6 +264,17 @@ async function preview(req, res) {
 }
 
 // --- plumbing ---------------------------------------------------------------
+
+/**
+ * One path segment, never an escape. Anything not a plain lowercase word becomes 'unknown'
+ * rather than being sanitized in place, because a name mangled into something else is worse
+ * than an obvious placeholder when you are looking for your own output.
+ */
+function safeSegment(raw) {
+  const s = String(raw || 'personal').toLowerCase().trim()
+  if (!/^[a-z0-9][a-z0-9_-]{0,40}$/.test(s)) return 'unknown'
+  return s
+}
 
 function readJson(req) {
   return new Promise((resolve, reject) => {

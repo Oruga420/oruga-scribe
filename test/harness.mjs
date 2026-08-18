@@ -12,6 +12,7 @@ import { makeChrome, tick, TINY_JPEG_DATA_URL, canvasFills } from './fake-chrome
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import path from 'node:path'
+import fs from 'node:fs'
 
 const require = createRequire(import.meta.url)
 const ROOT = path.join(import.meta.dirname, '..')
@@ -147,6 +148,7 @@ function makeMemoryIndexedDb() {
       delete(k) { m.delete(k); return { result: undefined } },
       count() { return { result: m.size } },
       getAll() { return { result: [...m.values()].map(clone) } },
+      getAllKeys() { return { result: [...m.keys()] } },
     }
   }
   function wrap(db) {
@@ -165,6 +167,7 @@ function makeMemoryIndexedDb() {
           delete(k) { queued.push(() => real.delete(k)); return { result: undefined } },
           count() { return real.count() },
           getAll() { return real.getAll() },
+          getAllKeys() { return real.getAllKeys() },
         }
         const delay = mode === 'readwrite' ? idbDelay.put : idbDelay.get
         ticks(delay).then(() => {
@@ -437,6 +440,80 @@ try {
 assert('D5', 'a tall frame is refused by the aspect guard',
   guarded, 'a 1280x5000 frame was accepted; the model would have misread it while reporting success')
 globalThis.__fakeImageSize = { width: 1280, height: 800 }
+
+// ===== E. second pass findings =====
+console.log('\nE. SECOND PASS')
+
+// E1: no orphaned image blobs after a purge. modelFrame used to be missed entirely.
+const idbMod = await import(pathToFileURL(path.join(ROOT, 'extension', 'lib', 'idb.js')).href)
+const purgeSess = {
+  id: 'purge-test', goal: 'g', company: 'personal', steps: [
+    { id: 'p1', beforeFrame: 'p1-b', afterFrame: 'p1-a', modelFrame: 'p1-m' },
+    { id: 'p2', beforeFrame: 'p2-b', modelFrame: 'p2-m' },
+  ],
+}
+for (const k of ['p1-b', 'p1-a', 'p1-m', 'p2-b', 'p2-m']) {
+  await idbMod.putFrame(k, new Blob([new Uint8Array(8)], { type: 'image/webp' }))
+}
+await idbMod.putSession(purgeSess)
+const beforeCount = await idbMod.frameCount()
+await idbMod.purgeSession('purge-test')
+const leftovers = []
+for (const k of ['p1-b', 'p1-a', 'p1-m', 'p2-b', 'p2-m']) {
+  if (await idbMod.getFrame(k)) leftovers.push(k)
+}
+assert('E1', 'purging a session deletes every frame including modelFrame',
+  leftovers.length === 0,
+  'leaked ' + JSON.stringify(leftovers) + ' (had ' + beforeCount + ' frames). ' +
+  'With unlimitedStorage nothing ever complains, so these accumulate forever.')
+
+// E6: a missing key must read as MISSING, not as a truthy request object.
+// This was the nastiest find of the pass. tx() unwrapped an IDBRequest with
+// `out.result !== undefined ? out.result : out`, so a missing key returned the request itself,
+// and `{result: undefined}` is truthy. `if (!blob)` never fired, `if (!session) throw` never
+// fired, and callers went on to read .steps off a request object.
+const missingFrame = await idbMod.getFrame('definitely-not-a-key')
+assert('E6', 'a missing frame is falsy, not a truthy request object',
+  !missingFrame,
+  'getFrame returned ' + JSON.stringify(missingFrame) + ' for a key that does not exist, ' +
+  'so every "if (!blob)" guard downstream is dead')
+const missingSession = await idbMod.getSession('definitely-not-a-session')
+assert('E6b', 'a missing session is falsy too',
+  !missingSession,
+  'getSession returned ' + JSON.stringify(missingSession) + ' for a key that does not exist')
+
+// E2: the dropped-image sentinel must not require an exact match.
+const claudeMod = require(path.join(ROOT, 'relay', 'claude.js'))
+assert('E2', 'a sentinel with a trailing period is still detected',
+  claudeMod.detectImageFailure('NO-IMAGE-RECEIVED.') === true,
+  'an exact-match check would miss this, and the step would be narrated blind')
+assert('E2b', 'and the CLI phrase is still detected',
+  claudeMod.detectImageFailure('API Error: an image in the conversation could not be processed and was removed.') === true,
+  'missed the CLI phrase')
+assert('E2c', 'without false positives on ordinary narration',
+  claudeMod.detectImageFailure('Click Save on the invoice page.') === false,
+  'false positive on normal text')
+
+// E3: a company name from the request body must never escape out/.
+const srvSrc = fs.readFileSync(path.join(ROOT, 'relay', 'server.js'), 'utf8')
+const usesSafeSegment = /path\.join\(OUT_DIR,\s*safeSegment\(/.test(srvSrc)
+assert('E3', 'the output directory is built from a sanitized path segment',
+  usesSafeSegment,
+  'session.company goes straight into path.join, so "../../Windows/Temp" writes outside out/')
+
+// E4: the login check must not spawn a process every few seconds forever.
+const claudeSrc = fs.readFileSync(path.join(ROOT, 'relay', 'claude.js'), 'utf8')
+assert('E4', 'a positive login result is cached for minutes, not seconds',
+  /LOGIN_TTL_OK\s*=\s*\d+\s*\*\s*60_000/.test(claudeSrc),
+  'the panel polls /health every 5s; a short flat TTL spawns a claude process forever')
+
+// E5: streaming writes must be guarded against a client that hung up.
+assert('E5', 'narration writes check the socket before writing',
+  /writableEnded\s*\|\|\s*res\.destroyed/.test(srvSrc),
+  'res.write on a closed socket throws, and the panel closes mid narration routinely')
+assert('E5b', 'and a client disconnect aborts the model call',
+  /signal:\s*abort\.signal/.test(srvSrc),
+  'a closed panel would keep burning quota on narration nobody will read')
 
 // --- report -----------------------------------------------------------------
 

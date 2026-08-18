@@ -38,7 +38,17 @@ function tx(store, mode, fn) {
     const s = t.objectStore(store)
     let out
     try { out = fn(s) } catch (e) { return reject(e) }
-    t.oncomplete = () => resolve(out && out.result !== undefined ? out.result : out)
+    // Unwrap an IDBRequest by whether it HAS a result property, not by whether that property is
+    // defined.
+    //
+    // THE BUG: `out.result !== undefined ? out.result : out` returned the request OBJECT itself
+    // when the key was missing, and `{result: undefined}` is truthy. So a missing frame or a
+    // missing session came back as a truthy non-value: `if (!blob) return {ok:false}` never
+    // fired, `if (!session) throw` never fired, and the code went on to read .steps off a
+    // request object. A missing thing looked present, which is the worst way for a lookup to
+    // fail.
+    const unwrap = (v) => (v !== null && typeof v === 'object' && 'result' in v ? v.result : v)
+    t.oncomplete = () => resolve(unwrap(out))
     t.onerror = () => reject(t.error)
     t.onabort = () => reject(t.error)
   }))
@@ -84,16 +94,51 @@ export function deleteSession(id) {
   return tx(SESSIONS, 'readwrite', (s) => s.delete(id))
 }
 
-/** Drop every frame belonging to a session. Recordings are not kept around. */
+/** Every frame key a step can hold. Miss one and its blob leaks forever. */
+const FRAME_KEYS = ['beforeFrame', 'afterFrame', 'modelFrame']
+
+/**
+ * Drop every frame belonging to a session. Recordings are not kept around.
+ *
+ * THE BUG: this deleted beforeFrame and afterFrame but not modelFrame, which is the CROPPED
+ * frame added later and the one there is exactly one of per step. With unlimitedStorage nothing
+ * ever complains, so every purged recording quietly left a third of its images on disk forever.
+ */
 export async function purgeSession(id) {
   const session = await getSession(id)
+  let dropped = 0
   if (session) {
     for (const step of session.steps || []) {
-      if (step.beforeFrame) await deleteFrame(step.beforeFrame).catch(() => {})
-      if (step.afterFrame) await deleteFrame(step.afterFrame).catch(() => {})
+      for (const k of FRAME_KEYS) {
+        if (step[k]) {
+          await deleteFrame(step[k]).catch(() => {})
+          dropped++
+        }
+      }
     }
   }
   await deleteSession(id)
+  return dropped
+}
+
+/**
+ * Delete frames that no session references any more, which is what is left behind by a crash
+ * between writing a frame and writing the step that points at it.
+ */
+export async function purgeOrphanFrames() {
+  const sessions = await allSessions()
+  const referenced = new Set()
+  for (const s of sessions) {
+    for (const step of s.steps || []) {
+      for (const k of FRAME_KEYS) if (step[k]) referenced.add(step[k])
+    }
+  }
+  const keys = await tx(FRAMES, 'readonly', (s) => s.getAllKeys())
+  let dropped = 0
+  for (const k of (keys || [])) {
+    if (!referenced.has(k)) { await deleteFrame(k).catch(() => {}); dropped++ }
+  }
+  return dropped
 }
 
 export async function estimateBytes() {

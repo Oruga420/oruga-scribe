@@ -79,6 +79,10 @@ function configDir() {
 
 let loginCache = { at: 0, value: false }
 
+/** Positive answers are cached long, negative ones short. See isLoggedIn(). */
+const LOGIN_TTL_OK = 10 * 60_000
+const LOGIN_TTL_FAIL = 20_000
+
 /**
  * Ask the CLI, do not guess from files.
  *
@@ -86,11 +90,15 @@ let loginCache = { at: 0, value: false }
  * config does not necessarily carry that key, so /health reported "not logged in" on a config
  * that worked perfectly. `claude auth status` is the authoritative answer.
  *
- * Cached for 15s because it spawns a process and /health is polled every 5s by the panel.
+ * ASYMMETRIC CACHE. The panel polls /health every 5s for as long as it is open, and this spawns
+ * a process. A flat 15s TTL meant a claude process was spawned every 15 seconds, forever, for a
+ * value that changes maybe once a week. Once logged in, cache for 10 minutes. While NOT logged
+ * in, keep checking every 20s so the panel lights up soon after the user finishes /login.
  */
 function isLoggedIn() {
   const now = Date.now()
-  if (now - loginCache.at < 15_000) return loginCache.value
+  const ttl = loginCache.value ? LOGIN_TTL_OK : LOGIN_TTL_FAIL
+  if (loginCache.at && now - loginCache.at < ttl) return loginCache.value
   let value = false
   try {
     const out = execFileSync(resolveExe(), ['auth', 'status'], {
@@ -223,7 +231,12 @@ function buildUserMessage(text, image = null) {
  */
 function detectImageFailure(text) {
   if (!text) return false
-  return text.includes(IMAGE_DROPPED_PHRASE) || text.trim() === NO_IMAGE_SENTINEL
+  // `includes`, not an equality check on the trimmed text. The model was instructed to reply
+  // with the sentinel "and nothing else", but a trailing period or a wrapping sentence is well
+  // within normal behavior, and an exact match would miss it. On a SAFETY check, prefer the
+  // false positive: narrating a step without its image is recoverable, narrating from an image
+  // that was never received is not.
+  return text.includes(IMAGE_DROPPED_PHRASE) || text.includes(NO_IMAGE_SENTINEL)
 }
 
 // ---------------------------------------------------------------------------
