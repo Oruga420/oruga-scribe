@@ -139,10 +139,14 @@ export async function toModelFrame(source, target, redactRects = [], dpr = 1) {
       cy = 0
     }
 
-    assertSendable(Math.round(cw), Math.round(ch) > MAX_LONG_EDGE ? MAX_LONG_EDGE : Math.round(ch))
-
+    // Only the dimensions that ACTUALLY get sent are worth asserting on.
+    //
+    // There used to be a second check here on the crop window that clamped the height it passed
+    // to the assertion, so an oversized crop was rewritten into a passing value before being
+    // checked. A validation that edits its input to make it pass is worse than no validation:
+    // it reads like coverage and provides none.
     const canvas = new OffscreenCanvas(MODEL_W, Math.round(MODEL_W / (cw / ch)))
-    assertSendable(canvas.width, canvas.height)   // the dimensions that actually get sent
+    assertSendable(canvas.width, canvas.height)
     const ctx = canvas.getContext('2d')
     ctx.drawImage(base, cx, cy, cw, ch, 0, 0, canvas.width, canvas.height)
 

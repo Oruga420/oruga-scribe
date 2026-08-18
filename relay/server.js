@@ -21,6 +21,32 @@ const HOST = '127.0.0.1'
 const OUT_DIR = path.join(__dirname, '..', 'out')
 const MAX_BODY = 32 * 1024 * 1024   // a 40 step session with base64 frames
 
+/**
+ * The user blocklist: literal strings and regexes that must never leave the machine, applied
+ * LAST in the scrubber so they win over everything else.
+ *
+ * This was dead code: scrub.setBlocklist existed and nothing ever called it, so the feature the
+ * design promised did not exist. Now it loads from relay/blocklist.json at boot.
+ *
+ * Format: ["some literal string", {"pattern": "acme-\\d+", "flags": "gi", "to": "[CLIENT]"}]
+ */
+function loadBlocklist() {
+  const file = path.join(__dirname, 'blocklist.json')
+  if (!fs.existsSync(file)) return 0
+  try {
+    const list = JSON.parse(fs.readFileSync(file, 'utf8'))
+    if (!Array.isArray(list)) throw new Error('blocklist.json must contain an array')
+    scrub.setBlocklist(list)
+    return list.length
+  } catch (e) {
+    // Fail loudly and keep the built in patterns rather than starting with a silently
+    // broken blocklist the user believes is protecting them.
+    console.error('\n  BLOCKLIST NOT LOADED: ' + e.message)
+    console.error('  Built in redaction still applies, but your custom entries do NOT.\n')
+    return -1
+  }
+}
+
 // Narration must never run two spawns at once: overlapping calls stack Node processes and
 // the panel falls progressively behind. Single flight, with newly arrived steps merged
 // into the next payload instead of queued as another call.
@@ -108,8 +134,17 @@ async function narrate(req, res) {
 
   if (inFlight) {
     // Merge rather than queue. The panel gets one narration covering both groups.
+    // Capped: an unbounded buffer would grow all session and then be sent as one enormous
+    // prompt, which is both slow and useless. Keep the most recent steps, drop the oldest.
+    const MAX_MERGE = 12
     mergeBuffer.push(...body.steps)
-    return json(res, 202, { ok: true, merged: true, pending: mergeBuffer.length })
+    let dropped = 0
+    if (mergeBuffer.length > MAX_MERGE) {
+      dropped = mergeBuffer.length - MAX_MERGE
+      mergeBuffer = mergeBuffer.slice(-MAX_MERGE)
+      console.error('  narration is falling behind: dropped ' + dropped + ' step(s) from the merge buffer')
+    }
+    return json(res, 202, { ok: true, merged: true, pending: mergeBuffer.length, dropped })
   }
 
   const steps = body.steps.concat(mergeBuffer.splice(0))
@@ -250,6 +285,10 @@ server.listen(PORT, HOST, () => {
     console.log('              If it is the machine default, calls spend the Promise seat.')
   }
   console.log('  auth        ' + authNote)
+  const bl = loadBlocklist()
+  console.log('  blocklist   ' + (bl > 0 ? bl + ' custom entries from relay/blocklist.json'
+    : bl === 0 ? 'none (add relay/blocklist.json to redact your own strings)'
+      : 'FAILED TO LOAD, see the error above'))
   console.log('  output      ' + OUT_DIR)
   console.log('')
   if (authNote !== 'logged in') {

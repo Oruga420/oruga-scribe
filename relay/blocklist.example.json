@@ -1,0 +1,6 @@
+[
+  "Some Client Name Ltd",
+  "internal-codename-alpha",
+  { "pattern": "ACME-\\d{4,}", "flags": "gi", "to": "[ticket]" },
+  { "pattern": "\\b10\\.\\d+\\.\\d+\\.\\d+\\b", "flags": "g", "to": "[internal-ip]" }
+]

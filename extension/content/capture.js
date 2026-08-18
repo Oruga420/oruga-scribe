@@ -318,20 +318,38 @@ const OPTS = { capture: true, passive: true }
 
 let pending = null
 
+/** How long a pointerdown snapshot stays valid while waiting for its click. */
+const PENDING_TTL_MS = 2500
+
 addEventListener('pointerdown', (ev) => {
   if (!recording) return
   const el = realTarget(ev)
   if (!el || el.nodeType !== 1) return
   // Serialize NOW. In a React app this node may not exist by the time click fires.
   pending = describe(el, { seq: ++seq, type: 'click' })
+  pending.__at = Date.now()
   send({ kind: 'pointerdown', step: pending })
 }, OPTS)
+
+// A pointerdown that never becomes a click (a drag, a text selection, a cancelled press) would
+// otherwise leave its snapshot sitting there, and the NEXT click would be attributed to the
+// wrong element. Drop it on the way out instead.
+for (const kind of ['pointerup', 'pointercancel']) {
+  addEventListener(kind, () => {
+    if (!pending) return
+    setTimeout(() => {
+      // If a click had followed, it already consumed the snapshot.
+      if (pending && Date.now() - pending.__at > 0) pending = null
+    }, 60)
+  }, OPTS)
+}
 
 addEventListener('click', async (ev) => {
   if (!recording) return
   const snapshot = pending
   pending = null
   if (!snapshot) return
+  if (Date.now() - snapshot.__at > PENDING_TTL_MS) return   // stale, do not misattribute
   const why = await settle()
   send({ kind: 'settled', seq: snapshot.seq, why, redactRects: redactionRects() })
 }, OPTS)

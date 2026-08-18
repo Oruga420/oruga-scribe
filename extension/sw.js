@@ -86,14 +86,40 @@ async function loadSession(id) {
   return id ? idb.getSession(id) : null
 }
 
+/**
+ * Every session mutation goes through here, serialized.
+ *
+ * THE BUG THIS FIXES: saveStep used to be a bare read-modify-write with awaits in the middle.
+ * Two overlapping steps (rapid clicks, or a change event landing while a click settles) both
+ * read the session, each pushed its own step to its own copy, and the second write clobbered
+ * the first. A step vanished with no error anywhere. Exactly the kind of loss that shows up as
+ * "the recording is missing things" and is impossible to reproduce on demand.
+ *
+ * The chain lives in a worker global, which is fine: if the worker dies the chain resets, and a
+ * fresh worker has no in-flight writes to serialize against.
+ */
+let sessionWrites = Promise.resolve()
+
+function withSession(sessionId, mutate) {
+  const run = async () => {
+    if (!sessionId) return null
+    const s = await idb.getSession(sessionId)
+    if (!s) return null
+    const result = await mutate(s)
+    await idb.putSession(s)
+    return result === undefined ? s : result
+  }
+  // Chain on both fulfilment and rejection so one failed write cannot stall the queue.
+  sessionWrites = sessionWrites.then(run, run)
+  return sessionWrites
+}
+
 async function saveStep(sessionId, step) {
-  const s = await idb.getSession(sessionId)
-  if (!s) return null
-  const i = s.steps.findIndex((x) => x.id === step.id)
-  if (i >= 0) s.steps[i] = step
-  else s.steps.push(step)
-  await idb.putSession(s)          // write BEFORE ack, always
-  return s
+  return withSession(sessionId, (s) => {
+    const i = s.steps.findIndex((x) => x.id === step.id)
+    if (i >= 0) s.steps[i] = step
+    else s.steps.push(step)
+  })
 }
 
 function notifyPanel(msg) {
@@ -110,16 +136,29 @@ function originOf(url) {
   try { return new URL(url).origin } catch { return '' }
 }
 
-async function checkOrigin(session, url) {
+/**
+ * Also routed through withSession: it used to putSession() a session object read earlier by the
+ * caller, which is the same clobbering race as saveStep had.
+ */
+async function checkOrigin(sessionId, url) {
   const origin = originOf(url)
   if (!origin) return { ok: false, reason: 'unparseable url' }
-  if (!session.originAllowlist.length) {
-    session.originAllowlist.push(origin)
-    await idb.putSession(session)
-    return { ok: true }
-  }
-  if (session.originAllowlist.includes(origin)) return { ok: true }
-  return { ok: false, reason: 'off allowlist: ' + origin }
+  return withSession(sessionId, (s) => {
+    if (!s.originAllowlist.length) {
+      s.originAllowlist.push(origin)
+      return { ok: true }
+    }
+    if (s.originAllowlist.includes(origin)) return { ok: true }
+    return { ok: false, reason: 'off allowlist: ' + origin }
+  })
+}
+
+/** Pause the recording, serialized. */
+async function pauseSession(sessionId, reason) {
+  return withSession(sessionId, (s) => {
+    s.paused = true
+    s.pauseReason = reason
+  })
 }
 
 // --- step assembly ----------------------------------------------------------
@@ -130,12 +169,11 @@ async function beginStep(desc, tabId, windowId) {
   const session = await loadSession(live.sessionId)
   if (!session || session.paused) return
 
-  const gate = await checkOrigin(session, desc.url)
-  if (!gate.ok) {
-    session.paused = true
-    session.pauseReason = gate.reason
-    await idb.putSession(session)
-    notifyPanel({ kind: 'paused', reason: gate.reason })
+  const gate = await checkOrigin(live.sessionId, desc.url)
+  if (!gate || !gate.ok) {
+    const reason = (gate && gate.reason) || 'session gone'
+    await pauseSession(live.sessionId, reason)
+    notifyPanel({ kind: 'paused', reason })
     return
   }
 
@@ -232,12 +270,11 @@ chrome.webNavigation.onCommitted.addListener(async (details) => {
   const session = await loadSession(live.sessionId)
   if (!session || session.paused) return
 
-  const gate = await checkOrigin(session, details.url)
-  if (!gate.ok) {
-    session.paused = true
-    session.pauseReason = gate.reason
-    await idb.putSession(session)
-    notifyPanel({ kind: 'paused', reason: gate.reason })
+  const gate = await checkOrigin(live.sessionId, details.url)
+  if (!gate || !gate.ok) {
+    const reason = (gate && gate.reason) || 'session gone'
+    await pauseSession(live.sessionId, reason)
+    notifyPanel({ kind: 'paused', reason })
     return
   }
 
@@ -347,11 +384,10 @@ async function handlePanel(msg) {
       }
       pending.clear()
       await setRecording(ptr.tabId, false).catch(() => {})
-      const session = await loadSession(ptr.sessionId)
-      if (session) {
-        session.endedAt = new Date().toISOString()
-        await idb.putSession(session)
-      }
+      // Serialized, so a step still landing cannot be clobbered by the end-of-session write.
+      const session = await withSession(ptr.sessionId, (s) => {
+        s.endedAt = new Date().toISOString()
+      })
       await setLive(null)
       await chrome.storage.local.remove(['liveSessionId', 'liveTabId', 'liveWindowId'])
       return { ok: true, session }
@@ -374,29 +410,32 @@ async function handlePanel(msg) {
       return { ok: true, sessions: await idb.allSessions() }
     case 'unpause': {
       const live = await getLive()
-      const session = await loadSession(live && live.sessionId)
-      if (session) {
-        session.paused = false
-        session.pauseReason = ''
-        if (msg.allowOrigin) session.originAllowlist.push(msg.allowOrigin)
-        await idb.putSession(session)
-      }
+      const session = await withSession(live && live.sessionId, (s) => {
+        s.paused = false
+        s.pauseReason = ''
+        if (msg.allowOrigin && !s.originAllowlist.includes(msg.allowOrigin)) {
+          s.originAllowlist.push(msg.allowOrigin)
+        }
+      })
       return { ok: true, session }
     }
     case 'updateStep': {
-      const session = await idb.getSession(msg.sessionId)
-      if (!session) throw new Error('no such session')
-      const i = session.steps.findIndex((s) => s.id === msg.step.id)
-      if (i >= 0) session.steps[i] = Object.assign(session.steps[i], msg.step)
-      await idb.putSession(session)
+      const out = await withSession(msg.sessionId, (s) => {
+        const i = s.steps.findIndex((x) => x.id === msg.step.id)
+        if (i >= 0) s.steps[i] = Object.assign(s.steps[i], msg.step)
+      })
+      if (!out) throw new Error('no such session')
       return { ok: true }
     }
     case 'reorderSteps': {
-      const session = await idb.getSession(msg.sessionId)
-      if (!session) throw new Error('no such session')
-      const byId = new Map(session.steps.map((s) => [s.id, s]))
-      session.steps = msg.order.map((id) => byId.get(id)).filter(Boolean)
-      await idb.putSession(session)
+      const out = await withSession(msg.sessionId, (s) => {
+        const byId = new Map(s.steps.map((x) => [x.id, x]))
+        const reordered = msg.order.map((id) => byId.get(id)).filter(Boolean)
+        // Never drop steps the caller forgot to list: append the leftovers.
+        for (const st of s.steps) if (!msg.order.includes(st.id)) reordered.push(st)
+        s.steps = reordered
+      })
+      if (!out) throw new Error('no such session')
       return { ok: true }
     }
     case 'getFrame': {

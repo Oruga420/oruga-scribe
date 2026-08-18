@@ -92,6 +92,24 @@ async function tryImport(spec) {
   try { return await import(spec) } catch { return { default: null } }
 }
 
+/**
+ * Deterministic latency injected into the fake store, in macrotask ticks.
+ *
+ * Without this the fake resolves so fast that a read-modify-write window never interleaves, so
+ * the concurrency test passed even with the racy implementation deliberately restored. A test
+ * that cannot fail is worse than no test, because it reads as coverage.
+ *
+ * Reads are made slower than writes so the classic pattern (A reads, B reads, A writes,
+ * B writes) actually happens.
+ */
+let idbDelay = { get: 0, put: 0 }
+function setIdbDelay(get, put) { idbDelay = { get, put } }
+function ticks(n) {
+  let p = Promise.resolve()
+  for (let i = 0; i < n; i++) p = p.then(() => new Promise((r) => setTimeout(r, 0)))
+  return p
+}
+
 /** A tiny in-memory IndexedDB, enough for get/put/delete/count/getAll on two stores. */
 function makeMemoryIndexedDb() {
   const dbs = new Map()
@@ -115,22 +133,44 @@ function makeMemoryIndexedDb() {
   function storeOf(db, n) {
     if (!db.stores.has(n)) db.stores.set(n, new Map())
     const m = db.stores.get(n)
+    // CLONE on read and on write. Real IndexedDB serializes, so every get hands back a fresh
+    // object. Returning the same reference meant concurrent handlers all mutated ONE shared
+    // object, so no write could ever be lost and the race was untestable by construction.
+    const clone = (v) => {
+      if (v == null || typeof v !== 'object') return v
+      if (typeof Blob !== 'undefined' && v instanceof Blob) return v   // blobs pass through
+      return structuredClone(v)
+    }
     return {
-      put(v, k) { m.set(k !== undefined ? k : v.id, v); return { result: k } },
-      get(k) { return { result: m.get(k) } },
+      put(v, k) { m.set(k !== undefined ? k : v.id, clone(v)); return { result: k } },
+      get(k) { return { result: clone(m.get(k)) } },
       delete(k) { m.delete(k); return { result: undefined } },
       count() { return { result: m.size } },
-      getAll() { return { result: [...m.values()] } },
+      getAll() { return { result: [...m.values()].map(clone) } },
     }
   }
   function wrap(db) {
     return {
       objectStoreNames: { contains: (n) => db.stores.has(n) },
       createObjectStore(n) { db.stores.set(n, new Map()); return storeOf(db, n) },
-      transaction(name) {
+      transaction(name, mode) {
         const t = {}
-        const s = storeOf(db, name)
-        setTimeout(() => { if (t.oncomplete) t.oncomplete() }, 0)
+        const real = storeOf(db, name)
+        // Defer the actual mutation until the transaction completes, and complete it after a
+        // configurable number of ticks. A write that lands immediately cannot be raced.
+        const queued = []
+        const s = {
+          put(v, k) { queued.push(() => real.put(v, k)); return { result: k } },
+          get(k) { return real.get(k) },
+          delete(k) { queued.push(() => real.delete(k)); return { result: undefined } },
+          count() { return real.count() },
+          getAll() { return real.getAll() },
+        }
+        const delay = mode === 'readwrite' ? idbDelay.put : idbDelay.get
+        ticks(delay).then(() => {
+          for (const fn of queued) fn()
+          if (t.oncomplete) t.oncomplete()
+        })
         return Object.assign(t, { objectStore: () => s })
       },
     }
@@ -210,6 +250,60 @@ const panelStepMsgs = env.log.panelMessages.filter((m) => m.kind === 'step')
 assert('A4', 'the panel is told only after the step is persisted',
   panelStepMsgs.length >= 2 && got.session.steps.length >= panelStepMsgs.length - 1,
   'panel got ' + panelStepMsgs.length + ' step messages, disk has ' + got.session.steps.length)
+
+// ===== A7. concurrent steps must not clobber each other =====
+// Regression: saveStep was a bare read-modify-write with awaits in the middle, so two
+// overlapping steps each read the session, each pushed to its own copy, and the second write
+// silently destroyed the first. A step vanished with no error anywhere.
+const envR = makeChrome()
+// Reads slower than writes, so the read-modify-write window is genuinely open. Verified to FAIL
+// against the racy implementation, which is the only reason to trust it when it passes.
+setIdbDelay(3, 1)
+envR.state.captureFails = true   // captures also serialize; take them out of the equation
+await loadWorker(envR, 'race1')
+const sr = await envR.deliver({ to: 'oruga-sw', kind: 'start', goal: 'hammer it', company: 'personal' })
+const rid = sr && sr.session && sr.session.id
+
+// Fire 8 steps with no awaiting between them, the way a fast clicker does.
+const SENDER_R = { tab: { id: 7, windowId: 1 } }
+const fired = []
+for (let i = 1; i <= 8; i++) {
+  fired.push(envR.deliver(pointerdownMsg(100 + i), SENDER_R))
+}
+await Promise.all(fired)
+for (let i = 0; i < 600; i++) await tick()
+
+const raced = await envR.deliver({ to: 'oruga-sw', kind: 'getSession', sessionId: rid })
+const n = raced && raced.session ? raced.session.steps.length : 0
+assert('A7', 'concurrent steps are all persisted, none clobbered',
+  n === 8, 'fired 8 overlapping steps, only ' + n + ' survived. Session writes are racing.')
+
+const ids = raced && raced.session ? raced.session.steps.map((s) => s.id) : []
+assert('A7b', 'and no step was duplicated',
+  new Set(ids).size === ids.length, 'duplicate step ids: ' + JSON.stringify(ids))
+
+// A8 is the one that genuinely proves serialization. Panel writes (prune, note, reorder) have no
+// capture scheduler in front of them, so two of them landing together is the real unprotected
+// window. Verified to FAIL when updateStep is a bare read-modify-write.
+if (ids.length >= 4) {
+  await Promise.all([
+    envR.deliver({ to: 'oruga-sw', kind: 'updateStep', sessionId: rid, step: { id: ids[0], pruned: true } }),
+    envR.deliver({ to: 'oruga-sw', kind: 'updateStep', sessionId: rid, step: { id: ids[1], note: 'second write' } }),
+    envR.deliver({ to: 'oruga-sw', kind: 'updateStep', sessionId: rid, step: { id: ids[2], pruned: true } }),
+  ])
+  for (let i = 0; i < 400; i++) await tick()
+  const after = await envR.deliver({ to: 'oruga-sw', kind: 'getSession', sessionId: rid })
+  const byId = new Map((after.session ? after.session.steps : []).map((s) => [s.id, s]))
+  const kept = [
+    byId.get(ids[0]) && byId.get(ids[0]).pruned === true,
+    byId.get(ids[1]) && byId.get(ids[1]).note === 'second write',
+    byId.get(ids[2]) && byId.get(ids[2]).pruned === true,
+  ]
+  assert('A8', 'three concurrent panel writes all survive',
+    kept.every(Boolean),
+    'lost writes: ' + JSON.stringify(kept) + '. Panel edits are clobbering each other.')
+}
+setIdbDelay(0, 0)
 
 // ===== A5/A6. the toolbar button actually opens the panel =====
 // Regression: setPanelBehavior was only called inside onInstalled, which does NOT fire when
