@@ -12,10 +12,18 @@ relay/scratch/
 out/
 captures/
 
-# memory harness
+# memory harness - HARD RULE: the ARISE harness NEVER goes to GitHub.
+# It stays on disk and is rebuilt per machine with /arise. Do not remove these lines.
 .arise/
+.arise-memory
 .mempalace/
+mempalace.yaml
+entities.json
 MEMORY.md.bak
+.claude/
+WIKI.md
+wiki/
+sources/
 
 # node
 node_modules/
