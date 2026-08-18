@@ -1,20 +1,20 @@
 # Relay auth: isolated personal login
 
-The relay drives the Claude Code CLI. It must NOT use this machine's default login, which is
-the Promise Claude Team seat (`dev01@promise.ai`). oruga-scribe is a personal project, so it
-gets its own config directory with a personal login.
+The relay drives the Claude Code CLI. It must NOT use this machine's default login, which belongs
+to a work account on a team plan. oruga-scribe is a personal project, so it gets its own config
+directory with a personal login.
 
 ## How the isolation works
 
 `CLAUDE_CONFIG_DIR` relocates everything the CLI considers "the user": credentials, settings,
 session transcripts, project history. Point it at a folder inside this repo and the CLI behaves
-like a fresh install that knows nothing about Promise.
+like a fresh install that knows nothing about the work account.
 
 Verified on claude 2.1.219, 2026-08-14:
 
 | Config dir | Result |
 |---|---|
-| default | `is_error: false`, ran on the Promise seat |
+| default | `is_error: false`, ran on the work seat |
 | `relay/.claude-home` (empty) | `is_error: true`, `terminal_reason: "api_error"`, 0 tokens, and a fresh `.claude.json` / `projects/` / `sessions/` skeleton was created |
 
 The failure on an empty dir is the proof that it worked. It is not reading the default profile.
@@ -43,10 +43,9 @@ echo "say OK" | CLAUDE_CONFIG_DIR="$PWD/relay/.claude-home" \
 
 ## Why not the alternatives
 
-- **Accept the Promise seat.** Quota is pooled with interactive Claude Code, and the org has
-  `overageStatus: "rejected"` with `overageDisabledReason: "org_level_disabled"`, so hitting the
-  five hour window is a hard stop mid recording. It also mixes a personal tool with company
-  resources.
+- **Accept the work seat.** Quota is pooled with interactive Claude Code, and a team plan can
+  have overage disabled, in which case hitting the five hour window is a hard stop mid recording
+  rather than a spend-more fallback. It also mixes a personal tool with company resources.
 - **An Anthropic API key.** Works, isolates spend cleanly, but reintroduces a secret and a
   dollar ledger that this design otherwise does not need.
 

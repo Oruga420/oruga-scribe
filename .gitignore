@@ -44,3 +44,7 @@ desktop.ini
 # MemPalace per-project files (issue #185)
 mempalace.yaml
 entities.json
+
+# recorded evidence: regenerable with TARGET_URL=... node test/evidence.mjs
+# never committed, it contains screenshots and raw step logs of whatever was recorded
+evidence/

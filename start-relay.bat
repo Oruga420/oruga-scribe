@@ -12,13 +12,13 @@ REM To log in once:
 REM   set CLAUDE_CONFIG_DIR=%~dp0relay\.claude-home
 REM   claude auth login
 REM
-REM To run against the machine's DEFAULT login instead (which is the Promise seat), start this
-REM script with the word promise as an argument:  start-relay.bat promise
+REM To run against the machine's DEFAULT login instead (a work account on a team plan), start
+REM this script with the word work as an argument:  start-relay.bat work
 
-if /I "%~1"=="promise" (
+if /I "%~1"=="work" (
   set "SCRIBE_CLAUDE_CONFIG_DIR=%USERPROFILE%\.claude"
   echo.
-  echo   WARNING: using the machine default login, which is the Promise Claude Team seat.
+  echo   WARNING: using the machine default login, which is a work seat.
   echo   This spends company quota. Intended only for a one off proof run.
   echo.
 )

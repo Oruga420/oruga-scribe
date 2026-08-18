@@ -28,8 +28,16 @@ import { pathToFileURL } from 'node:url'
 const ROOT = path.join(import.meta.dirname, '..')
 const EXT = path.join(ROOT, 'extension')
 const OUT = path.join(ROOT, 'evidence')
-const TARGET = process.env.TARGET_URL || 'https://delphi-web-proxy-11570296898.us-central1.run.app/'
-const GOAL = process.env.GOAL || 'Open Delphi and sign in so I can use it'
+// No default target on purpose: whatever you point this at ends up in evidence/ as screenshots,
+// so the URL is always an explicit choice rather than something baked into the repo.
+//   TARGET_URL=https://example.com GOAL="do the thing" node test/evidence.mjs
+const TARGET = process.env.TARGET_URL
+const GOAL = process.env.GOAL || 'Walk through the tool so it can be documented'
+if (!TARGET) {
+  console.error('\n  TARGET_URL is required.\n' +
+    '    TARGET_URL=https://example.com node test/evidence.mjs\n')
+  process.exit(2)
+}
 const RELAY = process.env.RELAY || 'http://127.0.0.1:8787'
 const PORT = 9334
 
