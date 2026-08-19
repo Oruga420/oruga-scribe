@@ -82,6 +82,10 @@ const child = spawn(CHROME, [
   '--load-extension=' + EXT,
   '--disable-extensions-except=' + EXT,
   '--enable-unsafe-extension-debugging',
+  // The Chrome for Testing binary in the playwright cache can hit
+  // 'Sandbox cannot access executable ... Access is denied' depending on how it was unpacked.
+  // This is a local test harness driving our own extension, so dropping the sandbox is fine.
+  '--no-sandbox', '--disable-gpu',
   '--no-first-run',
   '--no-default-browser-check',
   '--window-size=1280,900',

@@ -364,11 +364,15 @@ async function handlePanel(msg) {
       // A tab that was already open when the extension loaded has no content script, because
       // manifest declarations only apply at document load. Inject now so recording works
       // without asking the user to reload the page.
-      await ensureInjected(tab.id)
+      const injected = await ensureInjected(tab.id)
 
       const reached = await setRecording(tab.id, true)
       await refreshRolling(tab.id, tab.windowId)
-      return { ok: true, session, framesReached: reached }
+      return {
+        ok: true, session, framesReached: reached,
+        injectError: injected.ok ? '' : injected.why,
+        tabUrl: tab.url,
+      }
     }
     case 'stop': {
       const live = await getLive()
@@ -465,10 +469,12 @@ async function ensureInjected(tabId) {
       target: { tabId, allFrames: true },
       files: ['content/capture.js'],
     })
-    return true
+    return { ok: true }
   } catch (e) {
-    // Restricted page, or the frame is gone. The caller reports framesReached: 0.
-    return false
+    // Return WHY, do not swallow it. The reasons need different advice from the user:
+    // "showing error page" means the page never loaded, so telling them to reload the tab is
+    // misleading. That message cost a debugging round chasing an attach bug that did not exist.
+    return { ok: false, why: String((e && e.message) || e) }
   }
 }
 

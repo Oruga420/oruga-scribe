@@ -1,0 +1,9 @@
+extension id bfjblnbhhpkkejippklojjinaecpanop
+
+--- first recording ---
+pane on fresh boot: {"setup":true,"rec":false,"review":false,"state":"idle","banner":"","setupErr":""}
+after start:        {"setup":false,"rec":true,"review":false,"state":"recording","banner":"That tab is showing an error page, not a real page, so there is nothing to record. Load the site first, then s","setupErr":""}
+steps captured:     0
+after stop:         {"setup":false,"rec":false,"review":true,"state":"review","banner":"That tab is showing an error page, not a real page, so there is nothing to record. Load the site first, then s","setupErr":""}
+
+ABORTING: zero steps, so the reload path cannot be tested.

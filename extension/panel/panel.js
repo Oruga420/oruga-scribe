@@ -15,7 +15,8 @@ const el = {
   dot: $('dot'), state: $('state'),
   setup: $('setup'), rec: $('rec'), review: $('review'),
   goal: $('goal'), company: $('company'), start: $('start'), setupErr: $('setupErr'),
-  goalEcho: $('goalEcho'), banner: $('banner'), stop: $('stop'), note: $('note'),
+  goalEcho: $('goalEcho'), banner: $('banner'), reviewBanner: $('reviewBanner'),
+  stop: $('stop'), note: $('note'),
   cSteps: $('cSteps'), cLow: $('cLow'), relayState: $('relayState'),
   steps: $('steps'), emptyMsg: $('emptyMsg'),
   reviewSteps: $('reviewSteps'), synth: $('synth'), back: $('back'),
@@ -157,22 +158,27 @@ el.start.addEventListener('click', async () => {
     el.goal.focus()
     return
   }
-  // Check the relay BEFORE recording, not after.
+  // Feedback FIRST, before any await. Start does real work (a capture, a content script
+  // injection) and can take a second or two, and a button that looks inert reads as broken.
+  el.start.disabled = true
+  el.start.textContent = 'Starting...'
+
+  // Do NOT await the relay probe here.
   //
-  // The old flow let you record a whole session, press Write the SOP, and only then discover the
-  // relay was down, leaving the work stranded in review. The relay is not required to record, so
-  // this warns rather than blocks, but it warns at the only moment the warning is useful.
-  await pingRelay()
-  const relayWarning = !relayUp
+  // An earlier version did, and it made Start feel dead: /health shells out to
+  // `claude auth status`, and with the relay down the fetch sat until its 6s timeout, so
+  // pressing Start did nothing visible for six seconds. Reported as "it will not let me start
+  // a new one". The relay is irrelevant to recording, so use whatever the 5s poller last saw
+  // and let a fresh probe update the banner when it lands.
+  const relayWarning = () => (!relayUp
     ? 'The relay is not running, so there will be no narration and no SOP. Recording still works '
       + 'and nothing is lost: start the relay with start-relay.bat and press Write the SOP when '
       + 'you are done.'
     : (!relayLoggedIn
       ? 'The relay is running but not logged in, so narration and the SOP will fail. '
         + 'See relay/README-auth.md.'
-      : '')
+      : ''))
 
-  el.start.disabled = true
   try {
     const r = await sw('start', { goal, company: el.company.value })
     if (!r || !r.ok) throw new Error((r && r.error) || 'could not start')
@@ -183,19 +189,39 @@ el.start.addEventListener('click', async () => {
     renderList(el.steps, [])
     renderCounts()
     if (!r.framesReached) {
+      // Say WHICH failure it is. "Reload the tab" is actively misleading when the page never
+      // loaded in the first place.
+      const why = String(r.injectError || '')
       el.banner.className = 'banner bad'
-      el.banner.textContent = 'No capture on this page. Reload the tab so the recorder can attach, ' +
-        'then start again.'
+      el.banner.textContent = /error page/i.test(why)
+        ? 'That tab is showing an error page, not a real page, so there is nothing to record. '
+          + 'Load the site first, then start again.'
+        : /cannot be scripted|Cannot access|Missing host permission/i.test(why)
+          ? 'Chrome does not allow extensions on this page, so it cannot be recorded. '
+            + 'Try the tool on a normal http or https page.'
+          : 'No capture on this page. Reload the tab so the recorder can attach, then start again.'
+        + (why ? ' (' + why.slice(0, 90) + ')' : '')
       el.banner.classList.remove('hidden')
-    } else if (relayWarning) {
-      el.banner.className = 'banner warn'
-      el.banner.textContent = relayWarning
-      el.banner.classList.remove('hidden')
+    } else {
+      // Show the relay warning from the cached state right away, then refresh it in the
+      // background so a relay that came up seconds ago clears the warning on its own.
+      const now = relayWarning()
+      if (now) {
+        el.banner.className = 'banner warn'
+        el.banner.textContent = now
+        el.banner.classList.remove('hidden')
+      }
+      pingRelay().then(() => {
+        const after = relayWarning()
+        if (!after) el.banner.classList.add('hidden')
+        else { el.banner.className = 'banner warn'; el.banner.textContent = after; el.banner.classList.remove('hidden') }
+      }).catch(() => {})
     }
   } catch (e) {
     el.setupErr.textContent = String(e.message || e)
   } finally {
     el.start.disabled = false
+    el.start.textContent = 'Start recording'
   }
 })
 
@@ -212,11 +238,11 @@ el.stop.addEventListener('click', async () => {
   setState('review', '')
   show(el.review)
   renderList(el.reviewSteps, visibleSteps(), { review: true })
+  el.reviewBanner.classList.add('hidden')
   if (r && r.ok === false && r.error) {
-    el.banner.className = 'banner bad'
-    el.banner.textContent = 'Stop reported: ' + r.error
-    el.banner.classList.remove('hidden')
-    el.review.prepend(el.banner)
+    el.reviewBanner.className = 'banner bad'
+    el.reviewBanner.textContent = 'Stop reported: ' + r.error
+    el.reviewBanner.classList.remove('hidden')
   }
 })
 
@@ -254,16 +280,21 @@ async function prune(id) {
 }
 
 el.synth.addEventListener('click', async () => {
+  // Here the await IS correct: we are about to make a long call and need an accurate answer.
+  // But say so on the button first, because the probe alone can take over a second.
+  el.synth.disabled = true
+  el.synth.textContent = 'Checking the relay...'
   await pingRelay()
+  el.synth.disabled = false
+  el.synth.textContent = 'Write the SOP'
   if (!relayUp || !relayLoggedIn) {
-    el.banner.className = 'banner bad'
-    el.banner.textContent = !relayUp
+    el.reviewBanner.className = 'banner bad'
+    el.reviewBanner.textContent = !relayUp
       ? 'The relay is not running. Start it with start-relay.bat (double click it, leave the '
         + 'window open), then press this button again. Your recording is safe on disk.'
       : 'The relay is running but not logged in, so it cannot write. See relay/README-auth.md, '
         + 'then press this button again. Your recording is safe on disk.'
-    el.banner.classList.remove('hidden')
-    el.review.prepend(el.banner)
+    el.reviewBanner.classList.remove('hidden')
     return
   }
   el.synth.disabled = true
@@ -281,10 +312,9 @@ el.synth.addEventListener('click', async () => {
   } catch (e) {
     el.synth.disabled = false
     el.synth.textContent = 'Write the SOP'
-    el.banner.className = 'banner bad'
-    el.banner.textContent = String(e.message || e)
-    el.banner.classList.remove('hidden')
-    el.review.prepend(el.banner)
+    el.reviewBanner.className = 'banner bad'
+    el.reviewBanner.textContent = String(e.message || e)
+    el.reviewBanner.classList.remove('hidden')
   }
 })
 
@@ -369,12 +399,11 @@ async function pingRelay() {
     show(el.review)
     setState('review', '')
     renderList(el.reviewSteps, visibleSteps(), { review: true })
-    el.banner.className = 'banner warn'
-    el.banner.textContent = 'Showing your last finished recording (' +
+    el.reviewBanner.className = 'banner warn'
+    el.reviewBanner.textContent = 'This is your last finished recording (' +
       visibleSteps().length + ' steps, ' + String(session.endedAt).slice(0, 16).replace('T', ' ') +
-      '). Write its SOP, or press Keep recording to start a new one.'
-    el.banner.classList.remove('hidden')
-    el.review.prepend(el.banner)
+      '). Write its SOP, or press "Start a new recording" to begin a different one.'
+    el.reviewBanner.classList.remove('hidden')
     return
   }
 
