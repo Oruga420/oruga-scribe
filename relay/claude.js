@@ -71,10 +71,19 @@ function resolveExe() {
   )
 }
 
-/** The isolated config dir holding the PERSONAL login. Never the machine default. */
+/**
+ * The isolated config dir holding the PERSONAL login. Never the machine default.
+ *
+ * TRIM the env value. `set X=%VAR%\.claude && node ...` in cmd.exe captures the space before the
+ * `&&` INTO the value, so the path becomes "C:\Users\me\.claude " with a trailing space. That
+ * directory does not exist, so the CLI reported "not logged in" against a machine that was
+ * perfectly logged in, and the only visible symptom was a space at the end of a JSON string.
+ * Cost 20 minutes of chasing the wrong thing.
+ */
 function configDir() {
-  return process.env.SCRIBE_CLAUDE_CONFIG_DIR
-    || path.join(__dirname, '.claude-home')
+  const raw = process.env.SCRIBE_CLAUDE_CONFIG_DIR
+  const trimmed = raw && raw.trim()
+  return trimmed || path.join(__dirname, '.claude-home')
 }
 
 let loginCache = { at: 0, value: false }

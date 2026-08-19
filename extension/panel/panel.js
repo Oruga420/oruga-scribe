@@ -24,6 +24,7 @@ const el = {
 
 let session = null
 let relayUp = false
+let relayLoggedIn = false
 const thumbCache = new Map()
 
 // --- worker bridge ----------------------------------------------------------
@@ -156,6 +157,21 @@ el.start.addEventListener('click', async () => {
     el.goal.focus()
     return
   }
+  // Check the relay BEFORE recording, not after.
+  //
+  // The old flow let you record a whole session, press Write the SOP, and only then discover the
+  // relay was down, leaving the work stranded in review. The relay is not required to record, so
+  // this warns rather than blocks, but it warns at the only moment the warning is useful.
+  await pingRelay()
+  const relayWarning = !relayUp
+    ? 'The relay is not running, so there will be no narration and no SOP. Recording still works '
+      + 'and nothing is lost: start the relay with start-relay.bat and press Write the SOP when '
+      + 'you are done.'
+    : (!relayLoggedIn
+      ? 'The relay is running but not logged in, so narration and the SOP will fail. '
+        + 'See relay/README-auth.md.'
+      : '')
+
   el.start.disabled = true
   try {
     const r = await sw('start', { goal, company: el.company.value })
@@ -170,6 +186,10 @@ el.start.addEventListener('click', async () => {
       el.banner.className = 'banner bad'
       el.banner.textContent = 'No capture on this page. Reload the tab so the recorder can attach, ' +
         'then start again.'
+      el.banner.classList.remove('hidden')
+    } else if (relayWarning) {
+      el.banner.className = 'banner warn'
+      el.banner.textContent = relayWarning
       el.banner.classList.remove('hidden')
     }
   } catch (e) {
@@ -234,10 +254,14 @@ async function prune(id) {
 }
 
 el.synth.addEventListener('click', async () => {
-  if (!relayUp) {
+  await pingRelay()
+  if (!relayUp || !relayLoggedIn) {
     el.banner.className = 'banner bad'
-    el.banner.textContent = 'The relay is not running, so nothing can be written yet. ' +
-      'Start it with: node relay/server.js'
+    el.banner.textContent = !relayUp
+      ? 'The relay is not running. Start it with start-relay.bat (double click it, leave the '
+        + 'window open), then press this button again. Your recording is safe on disk.'
+      : 'The relay is running but not logged in, so it cannot write. See relay/README-auth.md, '
+        + 'then press this button again. Your recording is safe on disk.'
     el.banner.classList.remove('hidden')
     el.review.prepend(el.banner)
     return
@@ -291,15 +315,22 @@ chrome.runtime.onMessage.addListener((msg) => {
  */
 async function pingRelay() {
   try {
-    const r = await fetch(RELAY + '/health', { signal: AbortSignal.timeout(1200) })
+    // 1200ms was too tight: /health shells out to `claude auth status` on a cold cache, which
+    // takes about 1.1s on its own, so the very first probe of a session timed out and the panel
+    // showed "narration off" against a perfectly healthy relay.
+    const r = await fetch(RELAY + '/health', { signal: AbortSignal.timeout(6000) })
     const j = await r.json()
     relayUp = !!j.ok
+    relayLoggedIn = !!j.loggedIn
     el.relayState.className = 'relay ' + (j.loggedIn ? 'on' : 'off')
     el.relayState.textContent = j.loggedIn ? 'narration on' : 'relay up, not logged in'
+    el.relayState.title = 'config dir: ' + (j.configDir || '?')
   } catch {
     relayUp = false
+    relayLoggedIn = false
     el.relayState.className = 'relay off'
     el.relayState.textContent = 'narration off'
+    el.relayState.title = 'the relay is not answering on ' + RELAY
   }
 }
 
@@ -319,8 +350,34 @@ async function pingRelay() {
     renderList(el.steps, visibleSteps())
     renderCounts()
     renderBanner()
-  } else {
-    show(el.setup)
-    setState('idle', '')
+    return
   }
+
+  // Nothing live. Offer the most recent FINISHED recording so its SOP can still be written.
+  //
+  // THE BUG THIS FIXES: resume returns null once endedAt is set, so after pressing Stop, closing
+  // and reopening the panel lost all access to the recording even though every step and frame was
+  // still sitting in IndexedDB. The only apparent option was to record the whole thing again.
+  const listed = await sw('listSessions').catch(() => null)
+  const finished = ((listed && listed.sessions) || [])
+    .filter((s) => s.endedAt && (s.steps || []).some((st) => !st.pruned))
+    .sort((a, b) => String(b.endedAt).localeCompare(String(a.endedAt)))
+
+  if (finished.length) {
+    session = finished[0]
+    el.goalEcho.textContent = session.goal
+    show(el.review)
+    setState('review', '')
+    renderList(el.reviewSteps, visibleSteps(), { review: true })
+    el.banner.className = 'banner warn'
+    el.banner.textContent = 'Showing your last finished recording (' +
+      visibleSteps().length + ' steps, ' + String(session.endedAt).slice(0, 16).replace('T', ' ') +
+      '). Write its SOP, or press Keep recording to start a new one.'
+    el.banner.classList.remove('hidden')
+    el.review.prepend(el.banner)
+    return
+  }
+
+  show(el.setup)
+  setState('idle', '')
 })()
