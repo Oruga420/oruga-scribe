@@ -9,43 +9,52 @@ relay/.claude-home/
 relay/scratch/
 
 # generated output
-out/
-captures/
+# ANCHORED to the repo root. Unanchored, "out/" also swallows apps/desktop/src/out/,
+# core/out/ and anything else a build tool happens to name out, silently and with no error.
+/out/
+/captures/
 
 # memory harness - HARD RULE: the ARISE harness NEVER goes to GitHub.
 # It stays on disk and is rebuilt per machine with /arise. Do not remove these lines.
+#
+# These four are deliberately left UNANCHORED while the rest of this file is anchored.
+# For the harness, over matching is the safe direction: a nested .claude/ that gets ignored
+# by accident costs nothing, a nested .claude/ that gets tracked by accident is the exact
+# thing the zero tolerance rule exists to prevent.
 .arise/
 .arise-memory
 .mempalace/
-mempalace.yaml
-entities.json
-MEMORY.md.bak
 .claude/
-WIKI.md
-wiki/
-sources/
+# The rest of the harness IS anchored, because these names are ordinary enough that a
+# subdirectory could legitimately want one and losing it silently would be worse.
+/mempalace.yaml
+/entities.json
+/MEMORY.md.bak
+/WIKI.md
+/wiki/
+/sources/
 
 # node
 node_modules/
 npm-debug.log*
 pnpm-debug.log*
 
-# extension build artifacts
-extension/dist/
+# build artifacts
+apps/extension/dist/
+apps/desktop/dist/
+apps/desktop/target/
+apps/desktop/native/target/
+*.node
 *.zip
 *.crx
-*.pem
 
 # os
 Thumbs.db
 desktop.ini
 .DS_Store
 
-# MemPalace per-project files (issue #185)
-mempalace.yaml
-entities.json
-
 # recorded evidence: regenerable with TARGET_URL=... node test/evidence.mjs
 # never committed, it contains screenshots and raw step logs of whatever was recorded
-evidence/
-evidence-repro/
+/evidence/
+/evidence-repro/
+/evidence-desktop/
