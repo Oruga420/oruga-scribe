@@ -47,11 +47,33 @@ function loadBlocklist() {
   }
 }
 
-// Narration must never run two spawns at once: overlapping calls stack Node processes and
-// the panel falls progressively behind. Single flight, with newly arrived steps merged
-// into the next payload instead of queued as another call.
-let inFlight = null
-let mergeBuffer = []
+// Narration must never run two spawns at once FOR THE SAME SESSION: overlapping calls stack
+// Node processes and the panel falls progressively behind. Single flight, with newly arrived
+// steps merged into the next payload instead of queued as another call.
+//
+// KEYED BY SESSION. This was two module globals, which is correct for exactly one user and
+// a cross tenant leak for any more than that: user B's steps went into the shared merge
+// buffer and were drained into user A's in flight call, so B's page titles, URLs and click
+// labels landed in A's document while B got only "202 merged" and never saw his own
+// narration. Both returned 200. Nothing logged.
+//
+// A Map keyed by session id fixes it, and steps are NEVER merged across session ids.
+const flights = new Map() // sessionId -> { inFlight: Promise|null, mergeBuffer: [] }
+
+function flightFor(sessionId) {
+  let f = flights.get(sessionId)
+  if (!f) {
+    f = { inFlight: null, mergeBuffer: [] }
+    flights.set(sessionId, f)
+  }
+  return f
+}
+
+/** Drop the entry once a session is quiet, so the Map does not grow for the process lifetime. */
+function releaseFlight(sessionId) {
+  const f = flights.get(sessionId)
+  if (f && !f.inFlight && !f.mergeBuffer.length) flights.delete(sessionId)
+}
 
 const server = http.createServer(async (req, res) => {
   const origin = req.headers.origin || ''
@@ -87,7 +109,21 @@ const server = http.createServer(async (req, res) => {
 process.on('unhandledRejection', (e) => {
   console.error('\n  UNHANDLED REJECTION (relay staying up): ' + (e && e.stack || e) + '\n')
 })
+// This handler exists because of bug 8: an error thrown inside a route killed Node and the
+// extension saw only "Failed to fetch". Surviving an in flight route error is correct.
+//
+// But it must not claim to be surviving when it is not. A failure BEFORE the server is
+// listening (EADDRINUSE is the common one) is fatal: nothing bound, so there is nothing to
+// stay up, and the process exits regardless. Printing "relay staying up" there is a message
+// that contradicts what actually happens one line later, which is exactly the class of
+// silent-lie failure this project keeps finding in itself.
+let listening = false
+
 process.on('uncaughtException', (e) => {
+  if (!listening) {
+    console.error('\n  FATAL, the relay never started: ' + (e && e.message || e) + '\n')
+    process.exit(1)
+  }
   console.error('\n  UNCAUGHT EXCEPTION (relay staying up): ' + (e && e.stack || e) + '\n')
 })
 
@@ -132,22 +168,40 @@ async function narrate(req, res) {
     return json(res, 400, { ok: false, error: 'steps required' })
   }
 
-  if (inFlight) {
-    // Merge rather than queue. The panel gets one narration covering both groups.
-    // Capped: an unbounded buffer would grow all session and then be sent as one enormous
-    // prompt, which is both slow and useless. Keep the most recent steps, drop the oldest.
-    const MAX_MERGE = 12
-    mergeBuffer.push(...body.steps)
-    let dropped = 0
-    if (mergeBuffer.length > MAX_MERGE) {
-      dropped = mergeBuffer.length - MAX_MERGE
-      mergeBuffer = mergeBuffer.slice(-MAX_MERGE)
-      console.error('  narration is falling behind: dropped ' + dropped + ' step(s) from the merge buffer')
-    }
-    return json(res, 202, { ok: true, merged: true, pending: mergeBuffer.length, dropped })
+  // Fail closed on a missing session id rather than falling back to a shared bucket. A
+  // default key would silently restore the exact cross tenant merge this keying exists to
+  // prevent, and it would look like it was working.
+  const sessionId = typeof body.sessionId === 'string' && body.sessionId.trim()
+  if (!sessionId) {
+    return json(res, 400, {
+      ok: false,
+      error: 'sessionId required: narration state is keyed per session so steps are never ' +
+        'merged across recordings',
+    })
   }
 
-  const steps = body.steps.concat(mergeBuffer.splice(0))
+  const flight = flightFor(sessionId)
+
+  if (flight.inFlight) {
+    // Merge rather than queue, but only within this session. The panel gets one narration
+    // covering both groups. Capped: an unbounded buffer would grow all session and then be
+    // sent as one enormous prompt, which is both slow and useless. Keep the most recent.
+    const MAX_MERGE = 12
+    flight.mergeBuffer.push(...body.steps)
+    let dropped = 0
+    if (flight.mergeBuffer.length > MAX_MERGE) {
+      dropped = flight.mergeBuffer.length - MAX_MERGE
+      flight.mergeBuffer = flight.mergeBuffer.slice(-MAX_MERGE)
+      console.error('  narration is falling behind for ' + sessionId +
+        ': dropped ' + dropped + ' step(s) from the merge buffer')
+    }
+    return json(res, 202, {
+      ok: true, merged: true, sessionId,
+      pending: flight.mergeBuffer.length, dropped,
+    })
+  }
+
+  const steps = body.steps.concat(flight.mergeBuffer.splice(0))
 
   let clean
   try {
@@ -182,16 +236,18 @@ async function narrate(req, res) {
   req.on('aborted', onClientGone)
   res.on('close', () => { if (!res.writableEnded) onClientGone() })
 
-  inFlight = C.run('narrate', payload, {
+  flight.inFlight = C.run('narrate', payload, {
     hasImage: !!image,
     signal: abort.signal,
+    sessionId,
     onDelta: (chunk) => send({ t: 'delta', text: chunk }),
   })
 
   try {
-    const out = await inFlight
+    const out = await flight.inFlight
     send({
       t: 'done',
+      sessionId,
       text: out.text,
       imageFailed: out.imageFailed,
       usage: out.usage,
@@ -205,7 +261,8 @@ async function narrate(req, res) {
   } catch (e) {
     if (!abort.signal.aborted) send({ t: 'error', error: String(e.message || e) })
   } finally {
-    inFlight = null
+    flight.inFlight = null
+    releaseFlight(sessionId)
     req.off('aborted', onClientGone)
     if (!res.writableEnded) res.end()
   }
@@ -303,7 +360,21 @@ function end(res, code, body, type) {
   res.end(body)
 }
 
+// A listen failure is not an exception you can shrug off, and EADDRINUSE has exactly one
+// cause in practice: a relay is already running. Say that, instead of a stack trace.
+server.on('error', (e) => {
+  if (e && e.code === 'EADDRINUSE') {
+    console.error('\n  Port ' + PORT + ' is already in use, so this relay did not start.')
+    console.error('  A relay is almost certainly already running. Use that window, or close it first.')
+    console.error('  To find it:  netstat -ano | findstr :' + PORT + '\n')
+  } else {
+    console.error('\n  The relay could not start: ' + (e && e.message || e) + '\n')
+  }
+  process.exit(1)
+})
+
 server.listen(PORT, HOST, () => {
+  listening = true
   let authNote = 'not logged in yet, narration will fail until you do'
   try {
     if (hasOauth(path.join(C.configDir(), '.claude.json'))) authNote = 'logged in'
