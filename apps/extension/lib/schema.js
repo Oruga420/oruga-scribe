@@ -82,7 +82,11 @@ export function scrubUrl(raw) {
     u.hash = ''
     u.username = ''
     u.password = ''
-    const kill = /token|key|secret|passw|sig|auth|session|code|state|jwt/i
+    // KEEP IDENTICAL to the kill list in relay/scrub.js. The harness asserts it (D6).
+    // These two drifted once, silently: the relay redacted email and this one did not, so
+    // an address in a query string survived capture time on the exact function the whole
+    // premise rests on. Nothing caught it because nothing compared them.
+    const kill = /token|key|secret|passw|sig|auth|session|code|state|jwt|email/i
     for (const k of [...u.searchParams.keys()]) {
       if (kill.test(k)) u.searchParams.set(k, 'REDACTED')
     }

@@ -79,6 +79,8 @@ function scrubUrl(raw) {
     u.hash = ''
     u.username = ''
     u.password = ''
+    // KEEP IDENTICAL to the kill list in apps/extension/lib/schema.js. The harness
+    // asserts it (D6). See the note there for what happened when they drifted.
     const kill = /token|key|secret|passw|sig|auth|session|code|state|jwt|email/i
     for (const k of [...u.searchParams.keys()]) {
       if (kill.test(k)) u.searchParams.set(k, 'REDACTED')

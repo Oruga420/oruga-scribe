@@ -417,6 +417,31 @@ try {
 assert('D4', 'a payload the scrubber cannot process throws so the caller drops it',
   dropped, 'scrubPayload accepted a malformed payload instead of throwing')
 
+// D6: the two scrubUrl kill lists must be identical.
+//
+// This is a REGRESSION guard for drift that already happened. scrubUrl exists twice, once
+// at capture time in the extension and once at the relay gate, and the lists silently
+// diverged: the relay redacted `email` and the extension did not. One directory boundary,
+// no bundler between them, and the security function this whole tool rests on. Nothing
+// caught it because nothing compared them, which is this project's signature failure.
+//
+// Falsifiability, per the rule adopted after the three test fidelity defects: delete
+// `|email` from either file and this assertion must go red.
+const KILL_RE = /const kill = \/([^/]+)\/i/
+const killIn = (rel) => {
+  const src = fs.readFileSync(path.join(ROOT, ...rel), 'utf8')
+  const m = src.match(KILL_RE)
+  return m ? m[1] : null
+}
+const killExt = killIn(['apps', 'extension', 'lib', 'schema.js'])
+const killRelay = killIn(['relay', 'scrub.js'])
+assert('D6', 'both scrubUrl kill lists are identical, so they cannot drift again',
+  killExt !== null && killExt === killRelay,
+  'extension: ' + killExt + '\n          relay:     ' + killRelay)
+assert('D6b', 'and the kill list still covers email, which is what drifted',
+  !!killExt && /(^|\|)email(\||$)/.test(killExt),
+  'email is missing from ' + killExt)
+
 // D3: the model frame must be blacked out with a solid fill, never a blur
 const shot = await import(pathToFileURL(path.join(ROOT, 'apps', 'extension', 'lib', 'shot.js')).href)
 globalThis.__fakeImageSize = { width: 1280, height: 800 }
