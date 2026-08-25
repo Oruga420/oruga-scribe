@@ -48,6 +48,39 @@ narration call from 10.8 seconds to 3.3, and time to first visible word from 10.
 Keep thinking ON for the end of session SOP synthesis, where quality matters and latency
 does not.
 
+## Driving it yourself: `/scribe`
+
+`auto/driver.mjs` lets an agent be the hands instead of a human mouse. It spawns Chrome for
+Testing with the extension loaded, starts a real recording, and exposes a loopback control API
+so the agent can survey the page, click, type and finish. **The extension is still the
+recorder and the relay still writes the SOP**; the agent only decides where to click. Reading
+the DOM and writing a guide directly would throw away the screenshots, the settle timing and
+the redaction gate.
+
+```
+node relay/server.js                                     # synthesis goes through it
+node auto/driver.mjs --url "<url>" --goal "<what to teach>"
+```
+
+Then talk to `http://127.0.0.1:8788`: `GET /survey`, `POST /start`, `POST /click`,
+`POST /type`, `POST /finish`, `POST /quit`. Add `--user-data-dir` to reuse a profile that is
+already logged in.
+
+Two refusals are built in and are the point of the file. A control whose accessible name
+matches the destructive denylist (delete, send, pay, publish, deactivate, and the Spanish
+equivalents) is refused unless the caller passes `confirm: true`, and credential fields refuse
+typing outright. A human knows not to press Delete; an agent does not, and a SOP is not worth
+a destroyed record.
+
+`auto/fixture/` is a local fake admin console for exercising all of this without touching a
+real tool or the network.
+
+**The skill lives in `skill/scribe/`.** To use it, copy it where Claude Code looks for skills:
+
+```
+cp -r skill/scribe ~/.claude/skills/
+```
+
 ## Local rules
 
 - Never deploy, publish or push this without an explicit go ahead.

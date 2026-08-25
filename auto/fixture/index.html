@@ -1,0 +1,56 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Fake Admin Console</title>
+<style>
+  body{font:15px/1.5 system-ui,sans-serif;margin:0;padding:32px;background:#f6f7f8;color:#111}
+  h1{font-size:20px;margin:0 0 4px} p.sub{color:#666;margin:0 0 24px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 18px}
+  button{font:inherit;padding:9px 16px;border-radius:7px;border:1px solid #ccd;background:#fff;cursor:pointer}
+  button.primary{background:#1a56db;color:#fff;border-color:#1a56db}
+  button.danger{background:#b91c1c;color:#fff;border-color:#b91c1c}
+  label{display:block;font-size:13px;color:#555;margin:0 0 4px}
+  input{font:inherit;padding:8px 10px;border:1px solid #ccd;border-radius:7px;width:260px}
+  .card{background:#fff;border:1px solid #e3e5e8;border-radius:10px;padding:20px;margin:0 0 16px}
+  #out{font-family:ui-monospace,Consolas,monospace;font-size:13px;color:#0a7}
+</style>
+
+<h1>Fake Admin Console</h1>
+<p class="sub">A local fixture for verifying the oruga-scribe auto driver. Nothing here leaves the page.</p>
+
+<div class="card">
+  <div class="row">
+    <button id="b1" class="primary">Open project</button>
+    <button id="b2">Settings</button>
+    <button id="b3">View report</button>
+    <button id="b4">Rotate token</button>
+  </div>
+  <div class="row">
+    <button id="b5" class="danger">Delete project</button>
+    <button id="b6" class="danger">Send invitation</button>
+  </div>
+</div>
+
+<div class="card">
+  <label for="pname">Project name</label>
+  <input id="pname" name="project_name" placeholder="e.g. acme-staging">
+  <label for="pw" style="margin-top:14px">Password</label>
+  <input id="pw" name="password" type="password" placeholder="never type here">
+</div>
+
+<p id="out">no action yet</p>
+
+<script>
+  // Each click mutates the DOM, so the extension's settle detection has something real to
+  // observe rather than a static page that never quiets down or never changes.
+  let n = 0;
+  for (const b of document.querySelectorAll('button')) {
+    b.addEventListener('click', () => {
+      n++;
+      document.getElementById('out').textContent =
+        'action ' + n + ': ' + b.textContent + ' at ' + new Date().toISOString();
+      const tag = document.createElement('div');
+      tag.textContent = 'result of ' + b.textContent;
+      b.closest('.card').appendChild(tag);
+    });
+  }
+</script>
