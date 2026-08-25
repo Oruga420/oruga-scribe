@@ -34,6 +34,10 @@ relay/scratch/
 /wiki/
 /sources/
 
+# NOTE: the per file logbooks (.bitacora/) are NOT listed here on purpose. The engine
+# excludes them through .git/info/exclude instead, so enabling them never shows up as a
+# tracked change in any repo. Spec: ~/.claude/rules/common/bitacora.md
+
 # node
 node_modules/
 npm-debug.log*
