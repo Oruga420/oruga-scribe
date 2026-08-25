@@ -36,7 +36,7 @@ function assert(id, name, cond, why) { cond ? ok(id, name) : bad(id, name, why |
  */
 async function loadWorker(env, bust) {
   globalThis.chrome = env.chrome
-  const url = pathToFileURL(path.join(ROOT, 'extension', 'sw.js')).href + '?v=' + bust
+  const url = pathToFileURL(path.join(ROOT, 'apps', 'extension', 'sw.js')).href + '?v=' + bust
   env.listeners.message.length = 0
   env.listeners.navCommitted.length = 0
   await import(url)
@@ -418,7 +418,7 @@ assert('D4', 'a payload the scrubber cannot process throws so the caller drops i
   dropped, 'scrubPayload accepted a malformed payload instead of throwing')
 
 // D3: the model frame must be blacked out with a solid fill, never a blur
-const shot = await import(pathToFileURL(path.join(ROOT, 'extension', 'lib', 'shot.js')).href)
+const shot = await import(pathToFileURL(path.join(ROOT, 'apps', 'extension', 'lib', 'shot.js')).href)
 globalThis.__fakeImageSize = { width: 1280, height: 800 }
 canvasFills.length = 0
 await shot.toModelFrame(TINY_JPEG_DATA_URL,
@@ -445,7 +445,7 @@ globalThis.__fakeImageSize = { width: 1280, height: 800 }
 console.log('\nE. SECOND PASS')
 
 // E1: no orphaned image blobs after a purge. modelFrame used to be missed entirely.
-const idbMod = await import(pathToFileURL(path.join(ROOT, 'extension', 'lib', 'idb.js')).href)
+const idbMod = await import(pathToFileURL(path.join(ROOT, 'apps', 'extension', 'lib', 'idb.js')).href)
 const purgeSess = {
   id: 'purge-test', goal: 'g', company: 'personal', steps: [
     { id: 'p1', beforeFrame: 'p1-b', afterFrame: 'p1-a', modelFrame: 'p1-m' },

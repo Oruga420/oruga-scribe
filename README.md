@@ -19,12 +19,19 @@ It is the source of truth for architecture, measured numbers, risks and phase or
 ## Shape
 
 ```
-extension/    MV3 extension. The side panel owns the session state, not the service worker.
-relay/        Node server on 127.0.0.1 that spawns claude -p. Holds no Anthropic secret.
-out/          Generated SOPs land here. Gitignored.
+apps/extension/   MV3 extension. The side panel owns the session state, not the service worker.
+apps/desktop/     The desktop recorder. Same product, native apps instead of one browser tab.
+core/             Shared between both front ends. The step schema lives here.
+relay/            Node server on 127.0.0.1 that spawns claude -p. Holds no Anthropic secret.
+                  Shared by both apps, and deliberately NOT under apps/.
+out/              Generated SOPs land here. Gitignored.
 ```
 
-The extension talks only to `http://127.0.0.1:<port>`. It has no internet egress of its own.
+Both front ends talk only to `http://127.0.0.1:<port>`. Neither has internet egress of its own.
+
+`relay/` stays at the root on purpose. It is the shared backend, and moving it would stop
+`.gitignore`'s `relay/.claude-home/` line matching, which would make the OAuth config
+directory trackable.
 
 ## Auth
 

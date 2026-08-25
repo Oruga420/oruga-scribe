@@ -26,7 +26,7 @@ import { spawn } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 
 const ROOT = path.join(import.meta.dirname, '..')
-const EXT = path.join(ROOT, 'extension')
+const EXT = path.join(ROOT, 'apps', 'extension')
 const OUT = path.join(ROOT, 'evidence')
 // No default target on purpose: whatever you point this at ends up in evidence/ as screenshots,
 // so the URL is always an explicit choice rather than something baked into the repo.

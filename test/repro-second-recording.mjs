@@ -14,7 +14,7 @@ import { spawn } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 
 const ROOT = path.join(import.meta.dirname, '..')
-const EXT = path.join(ROOT, 'extension')
+const EXT = path.join(ROOT, 'apps', 'extension')
 const OUT = path.join(ROOT, 'evidence-repro')
 const TARGET = process.env.TARGET_URL || 'https://example.com/'
 const PORT = 9336

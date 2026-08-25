@@ -36,7 +36,7 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const EXT = path.join(ROOT, 'extension')
+const EXT = path.join(ROOT, 'apps', 'extension')
 const RELAY = process.env.RELAY || 'http://127.0.0.1:8787'
 const CDP_PORT = Number(process.env.CDP_PORT || 9335)
 const CTRL_PORT = Number(process.env.CTRL_PORT || 8788)

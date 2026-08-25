@@ -11,7 +11,7 @@ import os from 'node:os'
 import { pathToFileURL } from 'node:url'
 
 const ROOT = path.join(import.meta.dirname, '..')
-const EXT = path.join(ROOT, 'extension')
+const EXT = path.join(ROOT, 'apps', 'extension')
 const { chromium } = await import(
   pathToFileURL(path.join(ROOT, '.tools', 'node_modules', 'playwright', 'index.mjs')).href)
 
