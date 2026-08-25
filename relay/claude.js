@@ -20,10 +20,32 @@
 const { spawn, execFile, execFileSync } = require('node:child_process')
 const path = require('node:path')
 const fs = require('node:fs')
+const os = require('node:os')
 
+/**
+ * Alejandro's call, 2026-08-24: Haiku 4.5 on BOTH paths, narration and synthesis.
+ *
+ * Narration was always Haiku: it fires every few seconds against a live panel and its
+ * output is disposable by design (see wiki/decisions.md), so a bigger model there buys
+ * nothing and costs the panel its responsiveness.
+ *
+ * Synthesis moved to Haiku for the Promise service, where it is the only model that
+ * answers 200 in BOTH Vertex regions and BOTH accessible projects: no enablement request,
+ * no region pinning, no dependency on anyone else. Kept here too so this tool is a
+ * faithful preview of what the service will produce. Judging SOP quality locally against
+ * a model the service will not use would be worthless.
+ *
+ * Synthesis is the hardest thing this system does, so if the SOP reads thin, moving it to
+ * claude-opus-4-6 is one constant. The relay asserts the returned model, so a swap can
+ * never silently run something else.
+ *
+ * IDs carry no date suffix, and that is load bearing rather than cosmetic: on Vertex the
+ * bare alias resolves to the dated snapshot server side, while the hyphen dated full ID
+ * (claude-haiku-4-5-20251001), the one you would copy out of the docs, returns a hard 404.
+ */
 const MODELS = Object.freeze({
   narrate: 'claude-haiku-4-5',
-  synthesize: 'claude-sonnet-5',
+  synthesize: 'claude-haiku-4-5',
   synthesizeUpgrade: 'claude-opus-5',
 })
 
@@ -270,6 +292,21 @@ function run(profile, stdinPayload, opts = {}) {
   const env = buildEnv(profile)
   const timeoutMs = TIMEOUTS[profile]
 
+  // PER REQUEST cwd. A Claude Code cwd is adopted as a project: the CLI writes session
+  // JSONL and auto memory into it, which is content OUTSIDE the redaction gate. One fixed
+  // cwd shared by every spawn means, on a multi user box, one person's step log sitting
+  // where the next person's spawn can read it, persisted long past the request.
+  //
+  // Note what is NOT made ephemeral here, because the plan got this wrong and it matters:
+  // CLAUDE_CONFIG_DIR cannot be per request on a subscription, because that directory IS
+  // the login. Wiping it per call would authenticate nothing. On Vertex there is no OAuth
+  // at all (auth is ADC from the metadata server), so there the config dir carries no
+  // credentials and CAN be ephemeral too. buildEnv handles that distinction.
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'oruga-scribe-run-'))
+  const cleanScratch = () => {
+    try { fs.rmSync(scratch, { recursive: true, force: true, maxRetries: 3 }) } catch { /* swept later */ }
+  }
+
   return new Promise((resolve, reject) => {
     const started = process.hrtime.bigint()
     const elapsed = () => Number(process.hrtime.bigint() - started) / 1e6
@@ -278,8 +315,8 @@ function run(profile, stdinPayload, opts = {}) {
       shell: false,           // never true: cmd.exe corrupts args
       windowsHide: true,
       env,
-      // A dedicated cwd keeps the child from adopting the repo as a Claude Code project.
-      cwd: __dirname,
+      // A fresh dedicated cwd per request. Never the repo, never shared between spawns.
+      cwd: scratch,
       stdio: ['pipe', 'pipe', 'pipe'],
     })
 
@@ -311,6 +348,9 @@ function run(profile, stdinPayload, opts = {}) {
       settled = true
       clearTimeout(timer)
       if (opts.signal) opts.signal.removeEventListener('abort', onAbort)
+      // Both paths, always. A scratch dir that survives a failed call is the same leak as
+      // one that is shared on purpose.
+      cleanScratch()
       err ? reject(err) : resolve(value)
     }
 
