@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>oruga-scribe: Ultraplan rev 2.2</title>
+<title>oruga-scribe: Ultraplan rev 2.3</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -107,7 +107,7 @@ footer{margin-top:48px;padding:26px 0 60px;border-top:1px solid var(--hair);colo
 
 <div class="topbar"><div class="wrap">
   <span class="dot"></span><span class="mark">oruga-scribe</span>
-  <span class="rev">Ultraplan rev 2.2 / what is left</span>
+  <span class="rev">Ultraplan rev 2.3 / what is left</span>
 </div></div>
 
 <div class="wrap">
@@ -117,7 +117,7 @@ footer{margin-top:48px;padding:26px 0 60px;border-top:1px solid var(--hair);colo
   <h1>A Chrome extension that watches you work and writes the SOP</h1>
   <p class="lede">You click through any web tool. The extension records each meaningful interaction, screenshots the state before each click, streams written narration into a side panel as you go, speaks it with ElevenLabs if you want, and at the end produces a finished Standard Operating Procedure as an editorial HTML page.</p>
   <div class="meta">
-    <span>rev 2.2, 2026-08-14</span>
+    <span>rev 2.3, 2026-08-19</span>
     <span>C:\Users\chuck\Desktop\oruga-scribe</span>
     <span>Chrome 151, Node 24, claude 2.1.219</span>
     <span>Research: 5 agents plus 2 adversarial verifiers</span>
@@ -179,6 +179,17 @@ CLAUDE_CONFIG_DIR="$PWD/relay/.claude-home" claude</div>
     <p><b>Deleted outright:</b> the relay <code>.env</code> for Anthropic, the dollar spend ledger, all explicit <code>cache_control</code> machinery, the <code>anthropic-dangerous-direct-browser-access</code> header, the <code>host_permissions</code> entry for <code>api.anthropic.com</code>, and the entire Chrome Web Store track (BYOK settings UI, privacy policy, Limited Use disclosure). The extension's only egress is now <code>http://127.0.0.1:&lt;port&gt;</code>.</p>
     <p><b>Made mandatory:</b> the relay. A browser extension cannot spawn a local process, so something has to host the CLI. It now holds no Anthropic secret at all, which is a strict improvement over rev 1.</p>
     <p><b>Died on contact with evidence:</b> the Agent SDK. It looked like the answer because it keeps one warm subprocess across turns. It is not worth it at v1: it bundles its own CLI (2.1.170 against the global 2.1.219) and the same model alias resolves to <b>different actual models</b> across the two, which is a silent-wrong-model hazard for 102 packages of dependency in exchange for roughly 1.5 seconds. Revisit only if the panel feels laggy in real use.</p>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">Changed in rev 2.3</p>
+  <h2>Opus 4.8 is the SOP synthesis model</h2>
+  <div class="card">
+    <p><b>Alejandro's call, 2026-08-19.</b> The default synthesis model moves from <code>claude-sonnet-5</code> to <code>claude-opus-4-8</code>. The SOP is the deliverable of this tool, so it gets the Opus-tier pass by default instead of behind a checkbox. The model ID carries no date suffix, and the same string works on Vertex, where current generation models use the bare first party ID with no provider prefix.</p>
+    <p><b>Narration deliberately stays on <code>claude-haiku-4-5</code>.</b> It fires every 6 to 8 seconds against a live panel and its output is disposable by design, never the SOP source. An Opus-tier call on that path buys nothing and costs the panel its responsiveness. If you want narration on Opus 4.8 too, say so and it is a one-line change.</p>
+    <p><b>Worth knowing:</b> Opus 4.8 is active but superseded. <code>claude-opus-5</code> is the current Opus at the identical $5 / $25 per MTok, the same 1M context and the same feature set. Alejandro was told this and chose 4.8, so it stands.</p>
+    <p><b>Found while making the change: the opt-in upgrade checkbox was never built.</b> <code>relay/server.js</code> reads <code>body.upgradeModel</code> and <code>relay/claude.js</code> branches on it, but <code>panel.js</code> posts only <code>{ session }</code> and no UI element sets the flag, so it has always been falsy. Consequence: every SOP ever synthesized by this tool ran on the default model, and <code>MODELS.synthesizeUpgrade</code> is unreachable except by hand-crafting a request. After rev 2.3 that default is Opus 4.8, which is what was wanted anyway. Two clean ways out, Alejandro's pick: build the toggle in the panel, or delete the slot and the branch. Leaving a live branch no caller can reach is exactly the shape of the nine bugs that returned success while broken.</p>
   </div>
 </section>
 
@@ -298,7 +309,7 @@ claude -p --input-format stream-json --output-format stream-json --verbose
 <b># synthesis, once per session, thinking left ON</b>
 env: CLAUDE_CONFIG_DIR=relay/.claude-home
 claude -p --output-format json --verbose
-  --model claude-sonnet-5            # opus-5 is an opt-in checkbox
+  --model claude-opus-4-8            # rev 2.3, Alejandro's call. Always this: see the dead upgrade slot below
   --permission-mode dontAsk --tools=
   --strict-mcp-config --setting-sources= --disable-slash-commands
   --system-prompt-file prompts/sop-system.txt
@@ -432,14 +443,15 @@ claude -p --output-format json --verbose
   <div class="tw"><table>
     <thead><tr><th>Workload</th><th>Model</th><th>Calls per session</th><th>Share of load</th></tr></thead>
     <tbody>
-      <tr><td>Live narration, groups of 1 to 3 steps</td><td><code>claude-haiku-4-5</code></td><td class="n">15 to 25</td><td class="n">16 percent</td></tr>
-      <tr class="win"><td>SOP synthesis, once</td><td><code>claude-sonnet-5</code> default</td><td class="n">1</td><td class="n">84 percent</td></tr>
-      <tr><td>SOP synthesis, opt-in upgrade</td><td><code>claude-opus-5</code></td><td class="n">1</td><td class="n">the reason it is a checkbox</td></tr>
-      <tr><td>Whole session, list-price equivalent</td><td></td><td class="n">~26</td><td class="n">~$0.47 synthetic, $0 billed</td></tr>
+      <tr><td>Live narration, groups of 1 to 3 steps</td><td><code>claude-haiku-4-5</code></td><td class="n">15 to 25</td><td class="n">10 percent</td></tr>
+      <tr class="win"><td>SOP synthesis, once</td><td><code>claude-opus-4-8</code> default <span class="mod">rev 2.3</span></td><td class="n">1</td><td class="n">90 percent</td></tr>
+      <tr><td>SOP synthesis, upgrade slot <span class="del">opt-in checkbox</span></td><td><code>claude-opus-5</code></td><td class="n">0</td><td class="n">DEAD CONFIG, no UI reaches it</td></tr>
+      <tr><td>Whole session, list-price equivalent</td><td></td><td class="n">~26</td><td class="n">~$0.73 synthetic, $0 billed</td></tr>
     </tbody>
   </table></div>
   <div class="card">
-    <p><b>The guard that matters is model routing on synthesis, not batching narration harder.</b> Narration is about $0.03 of synthetic equivalent per session, so coarsening the debounce to save quota is not supported by the numbers. The one synthesis call is where the bite is, which is why Sonnet 5 is the default and Opus 5 is a deliberate click.</p>
+    <p><b>The guard that matters is model routing on synthesis, not batching narration harder.</b> Narration is about $0.03 of synthetic equivalent per session, so coarsening the debounce to save quota is not supported by the numbers. The one synthesis call is where the bite is, and as of rev 2.3 that call runs on Opus 4.8 by Alejandro's call: the SOP is the deliverable, so it gets the Opus-tier pass rather than an opt-in checkbox.</p>
+    <p><b>Provenance of the $0.73.</b> Same measured token counts as rev 2.2, repriced from Sonnet 5 list ($3 / $15 per MTok) to Opus 4.8 list ($5 / $25). No new measurement was taken, so treat it as arithmetic on a measured base, not a fresh reading. Opus 5 sits at the same $5 / $25, so the opt-in upgrade is now a generation change rather than a cost decision.</p>
     <p><b>Degrade, do not die.</b> When <code>rate_limit_event</code> comes back with status other than allowed, the relay stops calling but the extension keeps capturing and screenshotting locally, surfaces <code>resetsAt</code> in the panel, and lets the SOP be synthesized after the window resets. Losing narration should never lose the recording.</p>
     <p><b>Warn about interactive sessions, gate only synthesis.</b> Narration is cheap enough to just run. Before the synthesis call, if an interactive Claude Code session is busy, offer run now or queue until idle, and default to queue.</p>
   </div>
@@ -501,7 +513,7 @@ oruga-scribe/
     <span class="del">ledger.js dollar spend cap</span>
   out/                            gitignored, generated SOPs land here
 
-NET: 26 files in rev 1, 32 in rev 2.2 (smoke.js added). BUILT SO FAR: 9 of 32.
+NET: 26 files in rev 1, 32 in rev 2.3 (smoke.js added). BUILT SO FAR: 9 of 32.
 Also built but not counted above: the ARISE harness (WIKI.md, sources/, wiki/ with 6 pages,
 .claude/ with CLAUDE.md, rules, agent, and the personal task layer).</p>
   </div>
