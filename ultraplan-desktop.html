@@ -1,0 +1,820 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>oruga-scribe desktop: Ultraplan rev 1.1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#eef3f2; --ink:#022532; --mist:#64ccc9; --spark:#ef3340; --teal:#138983;
+  --card:#ffffff; --line:#e2e9e8; --hair:#e0e7e6; --muted:#52666a; --faint:#9aaaac;
+  --green-soft:#e4f3f2; --green-ink:#0e6b66; --amber-soft:#fbefd6; --amber-ink:#8a5a00;
+  --red-soft:#fde3e5; --red-ink:#b21f29; --gray-soft:#eaefee; --gray-ink:#6c7e81;
+  --maxw:1080px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Barlow',system-ui,sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+
+.topbar{position:sticky;top:0;z-index:50;background:rgba(238,243,242,.86);backdrop-filter:blur(10px);border-bottom:1px solid var(--hair)}
+.topbar .wrap{display:flex;align-items:center;gap:10px;height:56px}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--spark);flex:none}
+.mark{font-weight:800;letter-spacing:-.01em}
+.topbar .rev{margin-left:auto;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--spark)}
+
+.hero{padding:56px 0 28px}
+.eyebrow{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:var(--teal);margin:0 0 10px}
+h1{font-size:clamp(30px,5vw,52px);line-height:1.06;letter-spacing:-.02em;margin:0 0 14px;font-weight:800;max-width:20ch}
+.lede{font-size:clamp(16px,1.9vw,19px);color:var(--muted);max-width:70ch;margin:0}
+.meta{margin-top:18px;font-size:13px;color:var(--faint);display:flex;flex-wrap:wrap;gap:18px}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:16px;overflow:hidden;margin:32px 0 8px}
+.stat{background:var(--card);padding:18px 20px}
+.stat .n{font-size:clamp(20px,2.7vw,28px);font-weight:800;letter-spacing:-.02em;line-height:1.1}
+.stat .l{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--faint);margin-top:6px}
+
+section{padding:40px 0 8px}
+h2{font-size:clamp(21px,2.6vw,27px);font-weight:800;letter-spacing:-.015em;margin:0 0 6px}
+.sub{color:var(--muted);margin:0 0 20px;max-width:76ch}
+h3{font-size:16px;font-weight:700;margin:26px 0 10px;letter-spacing:-.005em}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:22px 24px;margin-bottom:14px}
+.card p:last-child{margin-bottom:0}
+.card p:first-child{margin-top:0}
+.card.alert{border-color:var(--spark);border-width:2px}
+.card.alert .tag{display:inline-block;background:var(--spark);color:#fff;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;padding:3px 10px;border-radius:999px;margin-bottom:12px}
+
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:15px;background:var(--card);margin-bottom:14px}
+table{width:100%;border-collapse:collapse;font-size:14.5px;min-width:640px}
+thead th{background:var(--ink);color:#dff0ee;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;padding:11px 14px;white-space:nowrap}
+tbody td{padding:12px 14px;border-top:1px solid var(--hair);vertical-align:top}
+tbody tr.win{background:var(--green-soft)}
+tbody tr.bad{background:var(--red-soft)}
+td.n{white-space:nowrap;font-variant-numeric:tabular-nums}
+code{font-family:ui-monospace,'Cascadia Code',Consolas,monospace;font-size:.88em;background:var(--gray-soft);padding:1px 5px;border-radius:4px;word-break:break-word}
+
+.pill{display:inline-block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.p-crit{background:var(--red-soft);color:var(--red-ink)}
+.p-high{background:var(--amber-soft);color:var(--amber-ink)}
+.p-med{background:var(--gray-soft);color:var(--gray-ink)}
+.p-low{background:var(--green-soft);color:var(--green-ink)}
+.p-rec{background:var(--teal);color:#fff}
+.p-new{background:var(--spark);color:#fff}
+
+.phase{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:20px 22px;margin-bottom:12px;position:relative;overflow:hidden}
+.phase:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--mist)}
+.phase.gate:before{background:var(--spark)}
+.phase h4{margin:0 0 4px;font-size:17px;font-weight:800;letter-spacing:-.01em}
+.phase .dep{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--faint);margin-bottom:12px}
+.phase ul{margin:0;padding-left:20px}
+.phase li{margin-bottom:7px}
+.par{display:inline-block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--teal);border:1px solid var(--mist);border-radius:999px;padding:2px 8px;margin-left:8px;vertical-align:2px}
+
+ul.clean{list-style:none;padding:0;margin:0}
+ul.clean li{padding:9px 0;border-top:1px solid var(--hair);display:flex;gap:12px;align-items:flex-start}
+ul.clean li:first-child{border-top:0}
+ul.clean .box{flex:none;width:16px;height:16px;border:2px solid var(--faint);border-radius:4px;margin-top:4px}
+ul.clean li.done .box{background:var(--teal);border-color:var(--teal);position:relative}
+ul.clean li.done .box:after{content:"";position:absolute;left:4px;top:1px;width:5px;height:9px;border-right:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(40deg)}
+ul.clean li.block .box{border-color:var(--spark);background:var(--red-soft)}
+
+.files{font-family:ui-monospace,'Cascadia Code',Consolas,monospace;font-size:13px;line-height:1.75;white-space:pre;overflow-x:auto;margin:0}
+.files .add{color:var(--green-ink);font-weight:700}
+.files .del{color:var(--red-ink);text-decoration:line-through}
+.files .mod{color:var(--amber-ink);font-weight:700}
+.note{border-left:3px solid var(--spark);padding:2px 0 2px 16px;color:var(--muted);margin:16px 0}
+
+.blockcard{background:var(--ink);color:#dff0ee;border-radius:15px;padding:22px 24px;margin-bottom:14px}
+.blockcard h3{margin:0 0 10px;color:#fff;font-size:17px}
+.blockcard p{margin:0 0 12px;color:#a8c9c6}
+.blockcard p:last-child{margin-bottom:0}
+.blockcard code{background:rgba(255,255,255,.12);color:#ffd9a0}
+.blockcard .runme{background:#011820;border:1px solid #0d3d4a;border-radius:10px;padding:12px 14px;font-family:ui-monospace,Consolas,monospace;font-size:12.5px;color:#c9e6e3;overflow-x:auto;white-space:pre;margin:0 0 10px}
+.cmd{background:var(--ink);color:#c9e6e3;border-radius:12px;padding:16px 18px;font-family:ui-monospace,'Cascadia Code',Consolas,monospace;font-size:12.5px;line-height:1.7;overflow-x:auto;white-space:pre;margin:0 0 14px}
+.cmd b{color:#ffd9a0;font-weight:700}
+footer{margin-top:48px;padding:26px 0 60px;border-top:1px solid var(--hair);color:var(--faint);font-size:13px}
+</style>
+
+<div class="topbar"><div class="wrap">
+  <span class="dot"></span><span class="mark">oruga-scribe desktop</span>
+  <span class="rev">Ultraplan rev 1.1 / for approval</span>
+</div></div>
+
+<div class="wrap">
+
+<div class="hero">
+  <p class="eyebrow">Personal project / Planning artifact</p>
+  <h1>The same tool, watching the whole machine instead of one tab</h1>
+  <p class="lede">You state a goal, hit record, and work normally in any native application. The recorder captures each meaningful interaction, screenshots the window before each click, names the control you clicked by reading the operating system's own accessibility tree, and at the end the existing relay writes the finished Standard Operating Procedure. Windows, macOS and Linux, in that order and with honest tiers.</p>
+  <div class="meta">
+    <span>rev 1.1, 2026-08-24</span>
+    <span>C:\Users\chuck\Desktop\oruga-scribe</span>
+    <span>Research: 6 parallel agents, 2 cross-verified each other</span>
+    <span>Nothing built yet, nothing committed</span>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="n">35%</div><div class="l">Existing lines reused</div></div>
+  <div class="stat"><div class="n">5-6.5k</div><div class="l">New lines to write</div></div>
+  <div class="stat"><div class="n">16-22 d</div><div class="l">Windows first cut</div></div>
+  <div class="stat"><div class="n">37-59 d</div><div class="l">Windows plus macOS</div></div>
+  <div class="stat"><div class="n">67</div><div class="l">Acceptance criteria</div></div>
+  <div class="stat"><div class="n">5</div><div class="l">Spikes before phase 1</div></div>
+</div>
+
+<section>
+  <p class="eyebrow">Executive summary</p>
+  <h2>The relay is the asset. The extension is the mechanism.</h2>
+
+  <div class="card">
+    <p>Of the 3,161 lines of application code in this repo, <b>1,354 are platform neutral and 1,807 are pure browser</b>. Broken down by subsystem the split is starker: <code>relay/</code> is about 95 percent reusable, <code>extension/</code> is about 12 percent. The 35 percent that carries over is the part that took longest to get right: the <code>claude -p</code> contract with its two measured flags, the fail-closed redaction gate with its fourteen patterns and its Luhn check, and both silent-corruption guards. The 65 percent being discarded is mechanism, and mechanism is the cheap part.</p>
+    <p>So this is not a refactor of oruga-scribe. It is <b>a new capture layer bolted onto an existing, well-hardened writer</b>, and the plan should be read that way. The relay ports in an afternoon. The capture layer is a ground-up build against three unrelated operating system accessibility stacks, and that is where the entire risk lives.</p>
+    <p><b>The single hardest problem is not screenshots, it is redaction.</b> In the browser, the DOM says a field is a password. On the desktop there is no DOM. The accessibility layer does expose a secure-field flag on all three platforms, and it is reliable when present, but it is present maybe 60 to 80 percent of the time. Worse, the failure is shaped exactly wrong: a query that returns nothing is indistinguishable from a query that found nothing to redact. A fail-closed design becomes fail-open at that boundary. Section 05 is the answer and it is the load-bearing part of this plan.</p>
+  </div>
+
+  <div class="card alert">
+    <span class="tag">Read this before anything else</span>
+    <p><b>Microsoft shipped this product three weeks ago and deliberately does not do per-click accessibility capture.</b> <code>microsoft/skill-recorder</code>, 3,384 stars, MIT, Electron 43, last push today. A direct search of the codebase returns zero hits for <code>SetWindowsHookEx</code> and zero for <code>AXUIElement</code>. It reconstructs steps from video frames plus optional voice narration plus window titles, synthesized afterwards by a vision model. Exactly one file touches UI Automation, and only to read a browser address bar, hosted in a spawned <code>powershell.exe</code>.</p>
+    <p>Two readings, and both should be held. Either Microsoft judged per-click accessibility too fragile and too slow to ship, or they optimized for a different deliverable (a reusable agent skill rather than a document a human reads). Given that <code>mediar-ai/terminator</code> needs a <b>five second</b> timeout on File Explorer, the first reading is credible.</p>
+    <p><b>And here is the part that is genuinely ours, not theirs.</b> skill-recorder's window titles, URLs, clipboard previews and <b>screen images all upload to GitHub servers</b> for analysis; only narration transcription runs on device. Its README tells users "Keep secrets out of your recordings" and "Please don't capture secrets", and documents no automated safeguard. Microsoft ships a redaction scanner (<code>electron/sensitive/</code>, built on <code>@secretlint/core</code> 13, MIT, liftable as code) and still tells users not to rely on it. <b>Their architecture sends pixels off the machine, so their gate cannot be authoritative. Ours does not, which is the whole reason the redaction gate can run to completion before anything leaves.</b> Lift their code; do not cite them as evidence the approach is sufficient.</p>
+    <p><b>This plan answers it with a hybrid, not a bet.</b> Accessibility becomes enrichment, never a dependency. Every click always produces a usable step from window title plus process plus coordinates plus screenshot, which never fails and never touches a network. The accessibility name is layered on top with a hard 250 ms budget, OCR fills gaps, and vision runs once at the end over the whole session rather than per click. A missing name degrades a step. It never loses one.</p>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">01 / Approach</p>
+  <h2>Three ways to know what the user just did</h2>
+  <p class="sub">Every option pays the same screenshot cost. What separates them is where the semantics come from, and therefore what happens when the semantics are unavailable.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Criteria</th><th>A. Per-click accessibility</th><th>B. Frames plus narration</th><th>C. Layered hybrid</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>Where meaning comes from</b></td>
+        <td>OS accessibility tree at the cursor, on every click</td>
+        <td>Video frames, window titles, optional voice, synthesized afterwards</td>
+        <td>Four tiers, best available wins, all four always recorded</td>
+      </tr>
+      <tr>
+        <td><b>Proven by</b></td>
+        <td><code>Pimzino/StepSnap</code> (Apache-2.0, Win and mac complete), <code>ebanez8/openstep</code>, <code>mediar-ai/terminator</code></td>
+        <td><code>microsoft/skill-recorder</code>, 3,384 stars, shipping</td>
+        <td>Nobody, which is the honest cost of choosing it</td>
+      </tr>
+      <tr>
+        <td><b>Label quality when it works</b></td>
+        <td>Best. "Clicked the Save button"</td>
+        <td>Good, and improves with neighbouring context</td>
+        <td>Best available per step, with the tier recorded</td>
+      </tr>
+      <tr class="bad">
+        <td><b>When the tree is absent</b></td>
+        <td><b>Step is worthless.</b> Games, Flutter, Java Swing, canvas apps, Electron with a11y off, elevated windows</td>
+        <td>Unaffected, it never used the tree</td>
+        <td>Falls to OCR, then to window plus coordinates. Step survives</td>
+      </tr>
+      <tr>
+        <td><b>Redaction posture</b></td>
+        <td><b>Best.</b> <code>IsPassword</code> is known before a pixel touches disk</td>
+        <td>Pixels only. Redaction is OCR after the fact</td>
+        <td>Structured signal first, pixels second</td>
+      </tr>
+      <tr>
+        <td><b>Latency per click</b></td>
+        <td>50 to 250 ms, outliers to 5 s without a timeout</td>
+        <td>Zero at capture, all cost deferred</td>
+        <td>250 ms hard ceiling, then degrade</td>
+      </tr>
+      <tr>
+        <td><b>Cross platform cost</b></td>
+        <td>Three unrelated backends. This is where projects bleed</td>
+        <td>Lowest. Frames are frames</td>
+        <td>Same three backends, but each is optional</td>
+      </tr>
+      <tr class="win">
+        <td><b>Recommended</b></td>
+        <td><span class="pill p-med">No</span> single point of failure</td>
+        <td><span class="pill p-med">No</span> throws away the best signal available</td>
+        <td><span class="pill p-rec">Yes</span> C</td>
+      </tr>
+    </tbody>
+  </table></div>
+
+  <div class="card">
+    <h3 style="margin-top:0">The four tiers, in evaluation order</h3>
+    <p><b>Tier 1, always, never fails, never networks.</b> Foreground window title, process name, executable path, absolute click coordinates, coordinates normalised inside the window rect, and the screenshot. A step reading "clicked at (340, 210) in the Blender viewport" with an annotated screenshot is a legitimate SOP step. This tier is also the guarantee that the recorder never silently drops a step.</p>
+    <p><b>Tier 2, accessibility name and role, 250 ms budget.</b> <code>ElementFromPoint</code> on Windows, <code>AXUIElementCopyElementAtPosition</code> on macOS, <code>GetAccessibleAtPoint</code> on Linux/X11. Every result is graded (<code>UsefulElementFound</code>, <code>GenericContainerOnly</code>, <code>Failed</code>), and the grade drives tier 3 and tells the synthesis model how much to trust the label.</p>
+    <p><b>Tier 3, local OCR of a 300x120 crop</b> around the click when tier 2 returns nothing or a generic container. RapidOCR through the <code>pure-onnx-ocr</code> crate, roughly 50 to 80 MB, tens of milliseconds on a crop that small.</p>
+    <p><b>Tier 4, batched vision at synthesis, never per click.</b> Sending a crop to Haiku 4.5 per click costs about eight cents for a 200 click session, so cost is not the objection. Latency is (400 to 1500 ms per click makes live capture feel broken), and more importantly <b>a per-click vision call sends pixels before the redaction gate has finished deciding whether they are safe to send</b>, which directly violates this project's fail-closed rule. Batching at the end fixes latency, makes prompt caching work, produces better labels because the model sees neighbouring steps, and lets redaction run to completion before a single byte leaves the machine.</p>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">02 / Repository</p>
+  <h2>Not a git branch. A narrow monorepo.</h2>
+  <p class="sub">You asked for "a new branch of the project". The word is right about the intent and wrong about the mechanism, for one reason specific to this repo.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Option</th><th>Refactor cost today</th><th>How a scrub.js fix reaches both</th><th>Memory harness</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr class="bad">
+        <td><b>A.</b> A real <code>desktop</code> branch</td>
+        <td>Near zero</td>
+        <td>Manual cherry-pick, forever</td>
+        <td><b>Broken.</b> The harness is gitignored, so it does not follow a branch</td>
+        <td><span class="pill p-crit">No</span></td>
+      </tr>
+      <tr class="win">
+        <td><b>B.</b> Monorepo, shared core</td>
+        <td>Nine one-line path fixes in <code>test/</code> and <code>auto/</code></td>
+        <td>Automatically, same commit, one harness run</td>
+        <td>One wing, one wiki, needs a per-app split</td>
+        <td><span class="pill p-rec">Recommended</span></td>
+      </tr>
+      <tr>
+        <td><b>C.</b> Separate <code>oruga-scribe-desktop</code></td>
+        <td>Zero, plus a new remote (gated)</td>
+        <td>Never. Two copies, no test crosses them</td>
+        <td>Clean separation, its own wing. The one real argument for C</td>
+        <td><span class="pill p-med">Only if you want separate memory</span></td>
+      </tr>
+    </tbody>
+  </table></div>
+
+  <div class="card alert">
+    <span class="tag">The evidence that settles it</span>
+    <p><b><code>scrubUrl</code> already exists twice, with different behaviour, inside one branch of this one repo.</b></p>
+    <p><code>extension/lib/schema.js:85</code> kills query keys matching <code>/token|key|secret|passw|sig|auth|session|code|state|jwt/i</code>. <code>relay/scrub.js:79</code> uses the same list <b>plus <code>email</code></b>, and additionally pipes the result through <code>scrubText</code>. The relay redacts email addresses out of URLs. The extension does not. <b>Nothing catches this, because no test compares them.</b></p>
+    <p>That drift happened across a single directory boundary, on the security function this project's entire premise rests on, in a codebase whose documented characteristic failure is returning success while broken. Option C puts that same gate in two repositories no single test can cross. Option B puts it in one file with a byte-identity assertion in the harness.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Why A fails specifically here</h3>
+    <p>The ARISE harness is untracked by design: <code>wiki/</code>, <code>sources/</code>, <code>.claude/</code>, <code>WIKI.md</code>, <code>mempalace.yaml</code> and <code>.arise-memory</code> are all gitignored. <b>They do not follow a branch.</b> <code>git checkout desktop</code> leaves every one of them exactly where it was, so two branches would share one wiki, one MemPalace wing, one decision log and one set of hard rules, all describing two different products with no mechanism to tell which page is about which.</p>
+    <p>Concretely: <code>wiki/architecture.md</code> opens with an ASCII diagram of a Chrome tab, and both <code>.claude/CLAUDE.md:3</code> and <code>wiki/index.md:3</code> open with the words "A Chrome MV3 extension". Under option A those sentences are simultaneously right on one branch and wrong on the other, in the same file on disk. The memory layer is the working method on this project, and A breaks it silently.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">The target layout, and it is deliberately small</h3>
+    <div class="cmd">oruga-scribe/
+  relay/          <b>STAYS AT ROOT.</b> 1,226 of the 1,354 shared lines. Do not move it.
+  core/           NEW. Starts with exactly one file: schema.js
+  apps/
+    extension/    git mv extension apps/extension
+    desktop/      NEW
+  auto/           stays. The desktop driver joins it later
+  test/           stays. Nine path constants updated
+  .tools/         stays
+  skill/          stays</div>
+    <p><b><code>relay/</code> must not move,</b> and this is not a preference. <code>.gitignore:8</code> is <code>relay/.claude-home/</code>, anchored by its embedded slash. Move the directory and that pattern stops matching, and <b>the OAuth config directory becomes trackable</b>. Moving the relay also breaks <code>OUT_DIR</code>, four harness references, <code>start-relay.bat</code> and the <code>/scribe</code> skill, and buys nothing, because the relay already sits at the root as the shared backend.</p>
+    <p><b>Nine mechanical fixes, all the same shape:</b> five <code>const EXT = path.join(ROOT, 'extension')</code> lines in <code>test/evidence.mjs:29</code>, <code>test/probe-cdp.mjs:17</code>, <code>test/probe-launch.mjs:14</code>, <code>test/probe-loaded.mjs:15</code>, <code>test/repro-second-recording.mjs:17</code>, three in <code>test/harness.mjs:39,421,448</code>, and one in <code>auto/driver.mjs:38</code>. The <code>/scribe</code> skill never names <code>extension/</code> anywhere, so it does not break at all.</p>
+  </div>
+
+  <div class="card alert">
+    <span class="tag">Trap that would have bitten silently</span>
+    <p><b>Nine <code>.gitignore</code> patterns are unanchored, so they match at every depth.</b> Verified with <code>git check-ignore --no-index</code> against hypothetical monorepo paths: <code>apps/desktop/wiki/notes.md</code>, <code>apps/extension/.claude/x.md</code>, <code>core/out/build.js</code>, <code>apps/desktop/sources/a.md</code> and <code>apps/desktop/mempalace.yaml</code> are all silently ignored today.</p>
+    <p>Any restructure that creates a nested <code>wiki/</code>, <code>sources/</code>, <code>out/</code> or <code>.claude/</code> loses those files with no error and no warning. <b>Anchor the gitignore before moving anything</b>, as its own commit: <code>out/</code> becomes <code>/out/</code>, and the same for <code>.claude/</code>, <code>WIKI.md</code>, <code>wiki/</code>, <code>sources/</code>, <code>evidence/</code>, <code>evidence-repro/</code>, <code>mempalace.yaml</code>, <code>entities.json</code>. Leave <code>relay/.claude-home/</code> exactly as it is.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">The one thing the repo's own criterion already answers</h3>
+    <p><code>wiki/decisions.md:55-62</code> established that the Promise-wide service <b>is</b> a separate fork, <code>Promise-scribe</code>, and gave the reason: the architecture genuinely differs, because auth becomes a Vertex service account and the redaction gate has to move into the extension, and "neither fix is available to the personal tool without becoming the fork."</p>
+    <p>Apply that same criterion to desktop. Capture differs and the UI differs, but the relay, the redaction gate, the prompts and the OAuth-on-an-isolated-config-dir auth model are all identical. Those are precisely the pieces that justified forking <code>Promise-scribe</code>. Desktop keeps every one of them. <b>By this repo's own stated criterion, desktop is not a fork.</b></p>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">03 / Shell</p>
+  <h2>Electron 43 with a Rust addon, not Tauri</h2>
+  <p class="sub">The hard part of this app is three unrelated accessibility stacks. Every shell pays that cost identically, so the shell is chosen on what it costs around that work.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Option</th><th>Panel reuse</th><th>Relay</th><th>Spawn claude -p</th><th>Rust ramp</th><th>Win plus mac</th><th>Windows only</th></tr></thead>
+    <tbody>
+      <tr class="win">
+        <td><b>Electron 43 plus napi-rs</b></td>
+        <td>Verbatim, identical Chromium 150 everywhere</td>
+        <td>Unchanged in main process</td>
+        <td>Zero config</td>
+        <td>5-8 d, straight-line FFI</td>
+        <td class="n"><b>37-59 d</b></td>
+        <td class="n"><b>16-22 d</b></td>
+      </tr>
+      <tr>
+        <td>Tauri 2.11 plus Rust</td>
+        <td>Verbatim on Win, near on mac, <b>WebKitGTK on Linux</b></td>
+        <td>Must be ported to Rust</td>
+        <td>Whitelist scope, regex arg validators</td>
+        <td>20-35 d, borrow checker on a live pipeline</td>
+        <td class="n">57-92 d</td>
+        <td class="n">28-40 d</td>
+      </tr>
+      <tr>
+        <td>Pure Rust GUI (egui, iced, slint)</td>
+        <td><b>Thrown away entirely</b></td>
+        <td>Ported to Rust</td>
+        <td>Unrestricted</td>
+        <td>25-40 d</td>
+        <td class="n">67-96 d</td>
+        <td class="n">33-48 d</td>
+      </tr>
+      <tr>
+        <td>Node plus tray plus browser tab</td>
+        <td>Verbatim</td>
+        <td>Unchanged</td>
+        <td>Trivial</td>
+        <td>5-8 d</td>
+        <td class="n">36-58 d</td>
+        <td class="n">9-13 d</td>
+      </tr>
+    </tbody>
+  </table></div>
+
+  <div class="card">
+    <p><b>Electron wins because it is the only option where the shell costs approximately zero.</b> The 800 line vanilla HTML panel runs unchanged. The Node relay runs unchanged in the main process. <code>spawn('claude', args, {env})</code> needs no capability JSON and no regex argument validators, and the subprocess requirement is the one thing in this architecture that cannot be compromised. Every day not spent fighting the shell is a day spent on accessibility trees, which is where this project lives or dies.</p>
+    <p><b>The Rust you do write is napi-rs FFI</b>, which is the friendliest Rust there is: mostly straight-line calls into <code>uiautomation</code> 0.25.0, <code>xcap</code> 0.9.8 and about thirty lines of <code>extern "C"</code> for macOS. You are not writing a borrow-checker-heavy async pipeline, because the pipeline stays in Node. That is the entire difference between a 5 to 8 day ramp and a 20 to 35 day one.</p>
+    <p><b>There is no maintained Node binding for UI Automation on any platform.</b> Microsoft's own workaround in skill-recorder was koffi FFI plus spawning <code>powershell.exe</code> to host a UIA reader. In Rust you get first-class crates for all three platforms. That is the strongest single argument for the addon.</p>
+    <p><b>Costs accepted, plainly:</b> roughly 150 MB installed instead of 10, roughly 200 MB of RAM while recording instead of 60, roughly 3 s cold start instead of 1.4. For a tool you open, record with for ten minutes and close, none of those is a real cost. <b>Tauri wins only if this ever becomes an always-on background daemon</b>, which is exactly why screenpipe and Cap chose it.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Start from StepSnap, and lift the module rather than the app</h3>
+    <p><code>Pimzino/StepSnap</code> (Apache-2.0, Rust, pushed 2026-05-14) already implements this architecture. Its <code>src-tauri/src/accessibility.rs</code> is 650 lines with <code>#[cfg(target_os)]</code> arms for all three platforms and <b>no Tauri dependency inside the element-at-point function</b>, so it lifts cleanly into a napi-rs addon even though the shell around it is Tauri.</p>
+    <p>Its <code>ElementInfo</code> is already the right schema, and it solves two problems not yet started here. Verbatim from its own doc comment: <b>"<code>is_password</code> is true when the focused element is a password/secure field; in that case <code>value</code> will be the literal sentinel <code>[password]</code> and callers MUST NOT log or persist the actual content."</b> And it reads the <b>final state of a text field</b> after typing rather than replaying keystrokes, "more reliable than the raw keystroke stream", capping values at 2000 chars keeping head and tail.</p>
+    <p><b>Its Linux arm is a placeholder that returns a hardcoded string.</b> It shells out to <code>gdbus</code>, calls <code>GetAccessibleAtPoint</code>, ignores the result and returns <code>"UI Element"</code>. The comment says so. That is precisely what happens when someone builds this without a Linux machine, which is the strongest available argument for tiering Linux honestly rather than promising it.</p>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">04 / Platform tiers</p>
+  <h2>Three platforms, three honesty levels</h2>
+  <p class="sub">"Works equally on Mac, Linux and Windows" is the goal. It is not achievable today, and pretending otherwise would ship a Linux leg that compiles and lies.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Capability</th><th>Windows 11</th><th>macOS (Apple Silicon)</th><th>Linux / X11</th><th>Linux / Wayland</th></tr></thead>
+    <tbody>
+      <tr><td>Global mouse and key capture</td><td><code>WH_MOUSE_LL</code>, no permission</td><td><code>CGEventTap</code>, Input Monitoring TCC</td><td>XInput2 / XRecord, no permission</td><td class="n"><b>No portable API</b></td></tr>
+      <tr><td>Element under the cursor</td><td>UIA <code>ElementFromPoint</code>, no permission</td><td><code>AXUIElementCopyElementAtPosition</code>, Accessibility TCC</td><td>AT-SPI <code>GetAccessibleAtPoint</code></td><td>Same call, <b>coordinates unreliable</b></td></tr>
+      <tr><td>Secure field flag</td><td><code>IsPassword</code>, first class</td><td><code>AXSecureTextField</code> <b>subrole</b>, not role. Often absent entirely</td><td>role <code>PASSWORD_TEXT</code></td><td>same</td></tr>
+      <tr class="win"><td>Tree-independent password signal</td><td class="n">None</td><td><b><code>IsSecureEventInputEnabled()</code></b>, covers Electron and Java too</td><td class="n">None</td><td class="n">None</td></tr>
+      <tr class="bad"><td>Against an <b>elevated</b> window</td><td>Pixels work, <b>UIA fails (UIPI)</b>, hooks ambiguous</td><td>n/a</td><td>n/a</td><td>n/a</td></tr>
+      <tr><td>Bounding rectangle</td><td>Reliable</td><td>Reliable</td><td>Reliable</td><td class="n"><b>Untrusted</b></td></tr>
+      <tr><td>Property prefetch (caching)</td><td><b>Yes,</b> <code>CacheRequest</code></td><td>No equivalent</td><td>No equivalent</td><td>No equivalent</td></tr>
+      <tr><td>Window scoped capture</td><td>WGC <code>CreateForWindow</code></td><td><code>SCContentFilter(desktopIndependentWindow:)</code></td><td>XComposite pixmap</td><td>Compositor picker only</td></tr>
+      <tr><td>Exclude own window from capture</td><td><code>WDA_EXCLUDEFROMCAPTURE</code> (Win10 2004+)</td><td><code>SCContentFilter excludingApplications</code></td><td>n/a</td><td>No primitive exists</td></tr>
+      <tr><td>Screenshot permission</td><td>None</td><td>Screen Recording TCC, restart required</td><td>None</td><td>Portal, single-use restore tokens</td></tr>
+      <tr class="win"><td><b>Verdict</b></td><td><span class="pill p-low">Production ready</span></td><td><span class="pill p-low">Production ready</span>, signing is the work</td><td><span class="pill p-high">Workable, untested</span></td><td><span class="pill p-crit">Not viable</span></td></tr>
+      <tr><td><b>You can test it?</b></td><td>Yes, daily driver</td><td>Yes, M5 MacBook</td><td class="n"><b>No machine</b></td><td class="n"><b>No machine</b></td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="card alert">
+    <span class="tag">Wayland: three independent blockers, any one fatal</span>
+    <p><b>1. There is no global input observation.</b> No API receives clicks outside your own surface, and none reports the cursor position. <code>xdg-desktop-portal</code> issue 880 is an <b>open request</b> for a mouse-position portal that does not exist. <code>org.freedesktop.portal.InputCapture</code> is not passive monitoring: it is barrier triggered and exclusive, built for software KVM tools like input-leap.</p>
+    <p><b>2. The accessibility fallback is also dead.</b> AT-SPI2 <code>mouse:button</code> events came from X and are not emitted under Wayland. This is why Orca's mouse review does not work there.</p>
+    <p><b>3. You cannot choose which window to capture.</b> The ScreenCast portal does not let an application enumerate or select a window. The compositor shows a picker and returns a PipeWire node. Even with 1 and 2 solved you could not say "capture the window that was just clicked".</p>
+    <p><b>And a fourth, for completeness:</b> under Wayland, <code>AtspiComponent</code> returns the same position whether you request desktop or window coordinates. That is not a bug awaiting a patch. Wayland deliberately does not expose global surface coordinates to clients. GNOME's next-generation accessibility protocol changes the model to client-side hit testing, and its own status is <b>"early planning stages", no timeline</b>.</p>
+    <p><b>One precision so nobody misreads the cause.</b> evdev-based click detection through <code>/dev/input</code> still works, so raw input capture was never the blocker. What dies is the ability to <i>name</i> what was clicked, which is the entire product. A screenshot-and-OCR recorder remains technically possible on Wayland, but that is a different and worse product.</p>
+    <p style="margin-bottom:0"><b>Say "not viable", not "degraded".</b> Both accessibility agents reached this independently, from opposite directions (broken coordinates from the tree side, no <code>mouse:button</code> events at all from the capture side), and asked that it be recorded this way. Calling it degraded invites someone to budget two weeks for native Wayland.</p>
+  </div>
+
+  <div class="card alert">
+    <span class="tag">Windows: a designed limitation, not a defect</span>
+    <p>Against an <b>elevated</b> window, UIPI splits the capabilities cleanly, and the split is what makes it manageable. <b>Pixel capture works</b>, because UIPI restricts window messages and hooks, not GDI or DWM reads. <b>UIA fails</b>: Microsoft, verbatim, "Microsoft UI Automation can't drive the UI graphics of elevated applications on the desktop without the ability to bypass the restrictions that UIPI implements." So no name, no role, no bounding rect and <b>no <code>IsPassword</code> flag</b> on admin consoles, installers and some enterprise apps. Global low-level hooks are ambiguous: no authoritative Microsoft statement exists, and community evidence says degraded, which is spike S2.</p>
+    <p><b>Do not pursue the <code>uiAccess="true"</code> remedy.</b> It needs a signature chaining to a trusted root <i>and</i> installation under <code>%ProgramFiles%</code> or <code>%WinDir%\System32</code>. Far too heavy for a local personal tool, and Project Zero published "Bypassing Administrator Protection by Abusing UI Access" in February 2026, so Microsoft is tightening that path rather than blessing it.</p>
+    <p style="margin-bottom:0"><b>The designed behaviour, on the record as intentional.</b> Over an elevated window: capture the pixels, skip the outline, skip the secure-field check, mark the step <code>unannotated: elevated target</code>. Because the tree returned nothing, the six-point gate in section 05 then <b>blocks that step's screenshot from reaching the model anyway</b>. So "records everything except the admin console" is correct and safe behaviour. Write it into the spec so nobody files it as a bug later.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Tier assignment</h3>
+    <p><b>Tier 1, Windows 11.</b> Best API, no permissions to negotiate, the most reference code, and <code>openstep</code>'s element classifier drops straight in. You use this machine every day. Ship here first and use it for real work before touching anything else.</p>
+    <p><b>Tier 2, macOS on Apple Silicon.</b> The API is good; the work is entirely TCC and code signing. Three separate permission prompts in onboarding (Input Monitoring, Accessibility, Screen Recording), and a hard ordering constraint below. Build arm64 natively and assert the architecture, because a silently x64 addon under Rosetta works in dev and is slow and confusing in production.</p>
+    <p><b>Tier 3, Linux on X11 only, deferred and declared.</b> Check <code>XDG_SESSION_TYPE</code> at startup. Under Wayland, say plainly in the UI that automatic click recording is unavailable and offer a manual "capture this step" hotkey, which is the only thing that works. Do not book the days until there is a machine. A VM or a cheap box running Fedora or Ubuntu with GNOME <b>on X11, not Wayland</b>, is a weekend of work and it is the only Linux configuration where the full architecture works today.</p>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">05 / Redaction</p>
+  <h2>Fail closed becomes fail open, unless the trust model is inverted</h2>
+  <p class="sub">This is the load-bearing section. Everything else is engineering; this is the part that decides whether the tool is safe to run on a machine that holds four companies' credentials.</p>
+
+  <div class="card alert">
+    <span class="tag">If one line survives into the implementation spec, it is this one</span>
+    <p><b>Secure-field logic needs three states, not two: secure, not-secure, and UNKNOWN. Unknown fails closed.</b></p>
+    <p>The same bug appears four times, on three platforms, through four unrelated mechanisms, and <b>naive code reads all four as "not a password"</b>:</p>
+    <div class="tw"><table>
+      <thead><tr><th>Platform</th><th>Mechanism</th><th>What "unknown" looks like</th></tr></thead>
+      <tbody>
+        <tr><td>macOS</td><td>AX subrole</td><td><code>kAXErrorAttributeUnsupported</code> on a field that simply has no subrole. <b>Not</b> a present-but-nil value</td></tr>
+        <tr><td>macOS</td><td>Secure event input</td><td><code>false</code> on a password surface nobody remembered to wrap</td></tr>
+        <tr><td>Windows</td><td>UIA</td><td>No element at all, because the target window is elevated and UIPI blocked the call</td></tr>
+        <tr><td>Linux</td><td>AT-SPI</td><td>No tree at all: Electron with a11y off, Java without Access Bridge, Flutter, canvas</td></tr>
+      </tbody>
+    </table></div>
+    <p style="margin-bottom:0">Every one of these is indistinguishable from a genuine negative unless the three states are modelled explicitly. This is the kind of defect that works perfectly in testing and leaks in production, which is exactly the failure signature this project already documents about itself.</p>
+  </div>
+
+  <div class="card alert">
+    <span class="tag">The failure, precisely</span>
+    <p><code>redactionRects()</code> returns an empty array in two situations that are <b>indistinguishable to the caller</b>: there was nothing to redact, and the tree could not be read. In the browser the DOM is always there, so empty reliably means the first. On the desktop, <code>UIA IsPassword</code> returns nothing for Electron with accessibility off, for Qt built without the a11y plugin, for Java Swing, for canvas apps, for games and for elevated windows under UIPI. So the query legitimately returns empty over a visible password field, and the blackout silently does nothing.</p>
+    <p>The web rule ("drop the step if the scrubber throws") is right and too narrow. <b>The dangerous case is not the scrubber throwing. It is the scrubber running perfectly with nothing to look at.</b></p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Inverted trust: a step is unsafe by default and earns its way out</h3>
+    <p>A frame reaches the model only if <b>all six</b> of these hold. Any one failing drops the step, loudly, with a named reason the user can see and act on.</p>
+    <ul>
+      <li><b>1. Provenance known.</b> The target process and window were identified. Unknown process, unknown window, or a whole-screen capture instead of a specific window: drop.</li>
+      <li><b>2. The tree was actually readable.</b> Not "no secure fields found" but "queried and returned N greater than zero elements". A tree returning zero means <b>zero secure-field coverage</b>, which is exactly the leak case. Drop, or degrade to text only with no screenshot.</li>
+      <li><b>3. Not blocklisted,</b> and not the near-uniform-black signature of an app that protects itself with <code>WDA_MONITOR</code>. Treat an all-black capture as a redaction signal, not a bug.</li>
+      <li><b>4. OCR ran and returned text.</b> Nothing returned on a frame that visibly has text means the text scrubbers never ran. Treat as unscanned. Drop.</li>
+      <li><b>5. No high severity detector fired</b> (private key blocks, credential prefixes, anything the accessibility layer marked secure).</li>
+      <li><b>6. Redaction was applied and re-verified.</b> Blank the region in the raw buffer, then <b>re-OCR just that rect</b> and confirm the string is gone. Cheap, and it catches the single worst bug class: a coordinate-space mismatch that draws the black box in the wrong place.</li>
+    </ul>
+    <p style="margin-top:14px"><b>Plus one structural guarantee: the un-redacted frame must never exist as a file.</b> Capture into memory, redact in memory, encode once after redaction, only then touch disk. A crash between capture and redaction then leaks nothing, and there is no temporary file to forget about.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">The one signal that works when the tree does not, and it is macOS only</h3>
+    <p><code>NSSecureTextField</code> calls <code>EnableSecureEventInput()</code> automatically when it becomes first responder, and <b>while secure input is held, no other process can receive events on a CGEventTap at all</b> (Apple TN2150). A macOS recorder therefore <b>physically cannot</b> observe keystrokes typed into a secure field, regardless of permission or intent.</p>
+    <p><b>Why this is better than every other signal discussed here:</b> <code>IsSecureEventInputEnabled()</code> is a public API with <b>zero dependence on the accessibility tree</b>. It answers correctly for Electron apps whose tree was never built, for Java apps that expose nothing, and for elevated processes. Every other flag in this section goes blind exactly when the tree is unreadable, which is the leak case. This one does not.</p>
+    <p><b>And it covers the browser.</b> Chromium ships <code>ui/base/cocoa/secure_password_input.mm</code> with an RAII wrapper, <code>ui::ScopedPasswordInputEnabler</code>, over the same pair of calls, and Electron inherits it. The convention predates Chromium: Mozilla adopted enable-on-focus and disable-on-blur back in the Firefox 1.9 era, after a report that CGEvent taps could steal HTML form passwords. Settled cross-browser convention, not a quirk that might get reverted.</p>
+    <p><b>The gate polarity, which is the part that matters.</b> Secure input is opt-in per surface, and surfaces get missed: Chromium issue 452071826 (HTTP Basic Auth dialog passwords were not protected, went through the VRP, now fixed at an unknown milestone) and bug 695415 (a field changing type from text to password drops the protection). Two distinct gaps in two distinct mechanisms is not bad luck, it is the shape of an opt-in protection. So: <b><code>true</code> is strong evidence and triggers suppression. <code>false</code> is not evidence of safety and must never authorise shipping a screenshot.</b> It goes on the positive side of the fail-closed gate only.</p>
+    <p><b>A failure mode that must be surfaced, not swallowed.</b> Apps that call <code>EnableSecureEventInput</code> and never call <code>DisableSecureEventInput</code> leave the entire system stuck: every global hotkey in every app stops working until the offending app restarts. Known offenders include KeePassXC, 1Password, TextExpander, Raycast, and <b>Chrome itself</b>, which sometimes fails to release it if the cursor is still in a password field when the form is submitted. Since this tool records web apps in Chrome constantly, <b>Chrome is our single most likely source of a stuck state</b>. The recorder must say "keystroke capture is blocked because another application is holding secure input" rather than quietly shipping an SOP with no typing in it. <code>kCGSSessionSecureInputPID</code> can name the holder, but openradar 48953777 reports it returns the wrong PID when secure input was enabled from a background app, so treat it as a hint for the message and never a value to branch on.</p>
+    <p style="margin-bottom:0"><b>State the asymmetry plainly in the product docs.</b> macOS is the one platform where the operating system guarantees the password never reaches us. Windows has no equivalent (the secure desktop covers only UAC and Ctrl+Alt+Del) and Linux has none at all. On those two, our own discipline is the only thing standing between a password and the disk.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Scoping: three tiers, and visible gaps instead of silence</h3>
+    <p>In the browser, the goal field scopes an origin allowlist and keeps Promise, Sesh, VCC and Price Point out of each other's recordings. On the desktop, recording is machine-wide by default, so scoping stops being a feature and becomes the load-bearing safety property.</p>
+    <div class="tw"><table>
+      <thead><tr><th>Tier</th><th>When</th><th>What is emitted</th></tr></thead>
+      <tbody>
+        <tr class="win"><td><b>RECORD</b></td><td>Allowlisted, frontmost, identity still matches</td><td>Pixels, window title, control name</td></tr>
+        <tr><td><b>ACKNOWLEDGE</b></td><td>Neither allowlisted nor never-listed</td><td><code>foreign_app { app, durationMs }</code>. No pixels, no title, no control name</td></tr>
+        <tr class="bad"><td><b>INVISIBLE</b></td><td>On the machine-wide never-list</td><td><code>redacted_gap { durationMs }</code>. <b>Not even the app name</b></td></tr>
+      </tbody>
+    </table></div>
+    <p><b>Why a gap step and not silence.</b> If the user alt-tabs to 1Password, copies a token, comes back and pastes, an SOP that seamlessly skips those twenty seconds is <b>wrong</b>: a reader following it hits a hole with no marker. The gap step is the fail-loud form, and it is also what makes the tiering testable.</p>
+    <p><b>Browser windows are the worst case, and the answer reuses what already works.</b> One Chrome process hosts personal Gmail and a Promise console in different tabs, so allowlisting Chrome by bundle id allowlists all of it. <b>Hand browser windows off to the existing extension</b>, which knows the real origin, and have the desktop recorder emit only the "switched to Chrome" boundary. That closes the largest leak with code that is already written and already tested, and it is an independent argument for keeping both apps in one repo.</p>
+    <p><b>Identity is re-asserted per step, not once at Start,</b> because a window's identity can change with no navigation event at all: a Slack workspace switch, a terminal running <code>ssh prod</code>. A title that flips to another company's pattern pauses and asks.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Keystrokes: the hook is a classifier, not a recorder</h3>
+    <p>The insight that makes this tractable: <b>an SOP does not need the text, it needs the semantics of the text.</b> "Typed the project name" is a better step than "typed acme-migration-q3", because the next reader has a different project name anyway.</p>
+    <p><b>Never buffer plaintext, not even to scrub it afterwards.</b> A crash, core dump, swap-out or log flush between buffer and scrub is a plaintext leak. On each key event the hook makes exactly one decision and emits a <code>KeyClass</code> enum, never a character. Printable characters are <b>counted, not stored</b>: the buffer is an integer and some flags.</p>
+    <p><b>Shortcuts are the exception and are safe verbatim.</b> <code>Ctrl+S</code>, <code>Cmd+Shift+P</code>, <code>Alt+Tab</code> carry no secrets and are by far the most SOP-relevant keyboard events. Nearly all the keyboard value lives here.</p>
+    <p><b>On burst end</b> (focus change, Enter, Tab, or about 800 ms idle) query the accessibility layer once for the focused element. Flagged secure: emit "entered a password" and <b>do not record the length, because password length is itself a secret</b>. Readable and not flagged and passing the six-point gate: read the element's current <i>value</i>, which never sees a backspaced typo or a password typed into the wrong field. Not readable at all: emit "typed N characters" and never reconstruct from keystrokes.</p>
+    <p><b>Fail closed on focus ambiguity.</b> If focus changed mid-burst and the keystrokes cannot be attributed to one element, discard the whole burst. Ambiguous attribution is exactly how a password typed into a field the user had not yet clicked into ends up in a transcript.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">What the commercial tools do, which is avoid the problem</h3>
+    <p><b>UiPath Task Capture,</b> verbatim: "The metadata for each action includes <b>only the first letter</b> of the keyboard input... However, all the keyboard inputs are processed in the same way so <b>sensitive data can't be automatically recognized nor blurred/removed</b>." They abandoned classification and truncated everything.</p>
+    <p><b>Teramind,</b> a commercial DLP vendor, documents its own failure openly: password field detection works only if the field is visibly masked or its name contains "pass", otherwise the agent "will treat the field as a normal text field and capture all keystrokes entered into it, <b>even if the 'Monitor keystrokes in password fields' option is disabled</b>." That is a vendor admitting their privacy toggle fails open. Do not repeat that design.</p>
+    <p><b>Power Automate</b> offers no automatic protection at all; the documented remedy is the user selecting a step and choosing Delete screenshot. <b>Scribe</b> and <b>Tango</b> both do OCR-based blur at capture, with automatic PII detection gated behind Enterprise tier on Tango.</p>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">06 / Execution</p>
+  <h2>The plan as a dependency graph</h2>
+  <p class="sub">Phases at the same indent level run in parallel. The two gates are hard stops that need your judgement, not just green tests.</p>
+
+  <div class="phase gate">
+    <h4>Phase 0. Five spikes, before any construction <span class="par">All parallel</span></h4>
+    <div class="dep">Depends on nothing / about 2 days total / each one can invalidate a plan assumption</div>
+    <ul>
+      <li><b>S1. macOS signing and TCC, on the M5.</b> Build a trivial <code>.app</code> bundle, sign with a <b>free Apple ID Personal Team</b> Apple Development certificate, and check whether <code>CGPreflightScreenCaptureAccess()</code> returns true. <b>Decides whether you owe Apple 99 USD a year.</b> Half a day.</li>
+      <li><b>S2. The two macOS launch paths, which now conflict.</b> TCC attributes permissions to the <b>responsible process</b>, so launching via <code>open</code> or Finder attributes them to the app, and launching from a terminal attributes them to the terminal. That argues for <code>open</code>. But the "silent disable race" cuts the other way: after re-signing, a CGEventTap installed via Launch Services can be non-nil and receive <b>zero callbacks</b>, while running the Mach-O directly works. <b>This is the only genuine unresolved conflict in the macOS design.</b> Test both paths and pick per permission if necessary. Keeper line: a non-nil tap is not a healthy tap. 30 minutes.</li>
+      <li><b>S3. Windows low-level hooks over focused elevated windows.</b> Microsoft's docs are silent on whether <code>WH_KEYBOARD_LL</code> receives keystrokes destined for elevated windows; community evidence points to degradation. Pixel capture and UIA behaviour are already settled (see section 04); this is the one piece still open. 30 minutes.</li>
+      <li><b>S4. Does Chromium expose <code>input[type=password]</code> as <code>AXSecureTextField</code> on macOS?</b> <b>Demoted from a correctness gate to a labelling nicety.</b> Chromium calls <code>EnableSecureEventInput</code> for password fields regardless, so the tap goes deaf either way, and deafness is the property that actually protects the keystrokes. This spike now only decides whether the step reads "entered a password" or "typed into a field". 30 minutes.</li>
+      <li><b>S5. Is the WGC yellow border actually absent from captured frames?</b> Multiple secondary sources assert it; no Microsoft document states it. If it is present, hiding it needs package identity via a sparse MSIX, which is a real build. Cosmetic only. 5 minutes.</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <h4>Phase 1. Land the working tree and restructure the repo</h4>
+    <div class="dep">Depends on Phase 0 only for scheduling / sequential, order matters / about 1 day</div>
+    <ul>
+      <li>Fix <code>auto/driver.mjs:27</code>, which references a non-existent <code>auto/README.md</code>.</li>
+      <li>Three scoped commits so the restructure is a pure rename diff: the <code>/scribe</code> driver plus skill plus README, the Opus 4.8 synthesis change plus <code>ultraplan.html</code> rev 2.3, and the two relay honesty fixes.</li>
+      <li><b>Anchor the gitignore as its own commit, before anything moves.</b> Nine patterns, plus deleting three duplicate lines.</li>
+      <li>Run <code>/arise</code> first, because <code>.claude/CLAUDE.md:11-13</code> forbids reorganising without it.</li>
+      <li><code>git mv extension apps/extension</code>, update the nine path constants, run <code>node test/harness.mjs</code> green, commit as a rename-only change.</li>
+      <li><code>core/schema.js</code> becomes the source of truth, with <code>apps/extension/lib/schema.js</code> kept as a copy and a <b>byte-identity assertion in the harness</b>. Do not <code>git mv</code> it: it is imported as ESM with no bundler, and MV3 cannot import above the extension root. "Loaded unpacked, no build step" is load bearing.</li>
+      <li>Reconcile the two <code>scrubUrl</code> implementations into one, with the harness proving they cannot drift again.</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <h4>Phase 2. Three tracks, in parallel <span class="par">Parallel</span></h4>
+    <div class="dep">Depends on Phase 1 / about 4 to 6 days</div>
+    <ul>
+      <li><b>2.1 Relay hardening.</b> <code>resolveExe()</code> currently offers three candidates, all Windows, so it throws on macOS and Linux unless <code>CLAUDE_BIN</code> is set: add <code>~/.local/bin</code>, <code>/usr/local/bin</code>, <code>/opt/homebrew/bin</code> and a PATH lookup. Real POSIX tree kill via <code>detached: true</code> plus <code>process.kill(-pid)</code>, since <code>SIGKILL</code> on the child does not kill descendants. Replace the origin check with a Unix domain socket or Windows named pipe. Un-stale the <code>2.1.219</code> version pin in <code>smoke.js:59</code>, which fails today against 2.1.233. Fix the SOP referencing <code>step-NN.webp</code> filenames that are never attached and never written.</li>
+      <li><b>2.2 napi-rs addon skeleton.</b> Hook thread with its own message pump, lock-free queue, one crossing into JS per event via a <code>ThreadsafeFunction</code>. Vendor <code>rdev</code> rather than depending on it: it is unmaintained since 2023 but battle tested, and it is what both serious reference implementations ship.</li>
+      <li><b>2.3 Electron shell and panel port.</b> Panel HTML and CSS verbatim, state machine rewritten against the same decision table. Resolve the shell environment at startup, because a <code>.app</code> launched from Finder does not inherit the login shell PATH and <code>claude</code> will not be found. Build the child env explicitly so <code>ELECTRON_RUN_AS_NODE</code> does not leak into a CLI that is itself Node.</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <h4>Phase 3. The Windows capture layer</h4>
+    <div class="dep">Depends on 2.2 / about 5 to 7 days / this is the cost centre</div>
+    <ul>
+      <li><b>Capture the element on mouse DOWN, emit the step on mouse UP.</b> The UI is stable before the click, not after, and on a click that opens a modal, capturing on up can block. This is the highest-value line in the entire research.</li>
+      <li><b>Never call UIA from the hook callback.</b> Queue and return. A slow <code>WH_MOUSE_LL</code> procedure stalls input for every process on the machine.</li>
+      <li><code>element_from_point_build_cache</code> with a <code>CacheRequest</code> covering Name, ControlType, LocalizedControlType, AutomationId, BoundingRectangle and IsPassword. One cross-process round trip instead of six. <b>terminator uses no CacheRequest anywhere</b>, and its own timing logs show why that hurts.</li>
+      <li><b>250 ms timeout, not 5000.</b> terminator needs five seconds on File Explorer because it is an automation driver where a wrong element is a failed run. A recorder already has the screenshot: a missing name costs a nicer label, a five second freeze costs the product.</li>
+      <li>Port <code>openstep</code>'s candidate scoring: walk the raw view to depth 4, filter to useful control types, order by smallest area then distance from the click. It is the difference between "clicked the Save button" and "clicked the Pane".</li>
+      <li>WGC via <code>CreateForWindow</code>, with <b><code>IncludeSecondaryWindows</code> on</b>, because a click on a dropdown or context menu item lands in a separate popup HWND and without it the screenshot will not contain the thing that was clicked.</li>
+      <li>Manifest as Per Monitor v2 and <b>assert the DPI context at capture time, not at startup</b>, because a dependency can reset the thread's context.</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <h4>Phase 4. Settle, coordinates, and the step coalescer <span class="par">Parallel with 3</span></h4>
+    <div class="dep">Depends on 2.2 / about 4 to 5 days</div>
+    <ul>
+      <li><b>Settle race, four entrants, first to fire wins.</b> Frame difference on a 64x64 grayscale sample at about 10 fps (the 32x32 diff math already exists in <code>shot.js:185-209</code>), accessibility structure events as an accelerator, window title change as the desktop analogue of <code>webNavigation.onCommitted</code>, and the existing 2500 ms ceiling. Four amendments: accessibility <b>silence never wins</b>, only activity followed by quiet; frame stability requires two consecutive stable samples <b>and</b> a frame that is neither uniform nor byte-identical to the previous step's; title change restarts settle against the new window; and add a <b>floor of about 120 ms</b>, which the browser never needed because a low-level hook sees the event before the target app does.</li>
+      <li><b>Open a persistent capture stream at Start</b> rather than a one-shot per click. Once open, 10 fps of downscaled frames is nearly free, and the browser's 550 ms quota scheduler disappears entirely.</li>
+      <li><b>The coordinate invariant: never transform a coordinate, only intersect a rect with the frame that carried it.</b> Every rect is tagged with its space, origin id, scale and frame sequence. An untagged rect throws. The only permitted conversion comes from the frame's own metadata, so both scale and origin are per frame, which kills the mixed-DPI class outright.</li>
+      <li><b>Plausibility band before drawing.</b> The target rect must sit fully inside the frame and occupy between 0.01 and 60 percent of it. Outside that band, ship the screenshot with <b>no outline</b> and tag the step <code>outline_unverified</code>. That converts "the outline is in the wrong place" from a silent wrong SOP into a visible caveat, for free.</li>
+      <li><b>Calibration probe at Start,</b> on every monitor the session touches. You know your own panel window's rect exactly, so predict where it lands in a capture, capture, and locate it. More than 2 px of disagreement refuses the session and names the display.</li>
+      <li><b>The coalescing state machine,</b> which has no browser counterpart. Raw input events are not steps: right-down plus menu-open plus item-click is one step, a menu bar traversal is one step with a path label, two downs inside 400 ms and 4 px is one step.</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <h4>Phase 5. Scoping, redaction and persistence</h4>
+    <div class="dep">Depends on 3 and 4 / about 4 to 5 days</div>
+    <ul>
+      <li>The three-tier scoping engine, the identity map, and the gap step types.</li>
+      <li>The six-point positive attestation gate from section 05, with a named drop reason surfaced in the panel.</li>
+      <li>The keystroke classifier, with the kill switch honoured synchronously inside the hook.</li>
+      <li>SQLite WAL plus frame files replacing IndexedDB, carrying A3 and A4 across verbatim: every step and frame durably written <b>before</b> the panel is told, with a resume path verified by an actual <code>taskkill /F</code> mid-session.</li>
+      <li>Review UI with thumbnails, the prune gate (which is the third redaction layer and must not be skipped), and a session health summary before the Write button.</li>
+      <li>Own window excluded from capture: <code>setContentProtection(true)</code> on Windows, and note that <b>macOS 15+ ScreenCaptureKit ignores it</b>, so on macOS the exclusion has to happen at capture time through <code>SCContentFilter</code>. Drop input events targeting our own PID.</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <h4>Phase 6. The three harnesses and CONTRACT-desktop.md <span class="par">Parallel with 5</span></h4>
+    <div class="dep">Depends on 3 and 4 / about 3 to 4 days</div>
+    <ul>
+      <li><code>test/harness-desktop.mjs</code>: pure logic against a fake OS adapter. Coalescer, scoping decisions, coordinate math, redaction, queue behaviour. Seconds, no quota.</li>
+      <li><code>test/probe-win.mjs</code>: live OS probes with no UI. Permission states, hook liveness with <code>LowLevelHooksTimeout</code> set to 50 ms, exclusion API availability, DPI context, calibration.</li>
+      <li><code>test/evidence-desktop.mjs</code>: real apps driven by a scripted robot, real screenshots into <code>evidence-desktop/</code>.</li>
+      <li><b>67 acceptance criteria</b> in <code>CONTRACT-desktop.md</code>, in the same style and rigor as the existing contract: A1 to A11 capture survives, B1 to B10 attaches to the right window, C1 to C11 review shows what was recorded, D1 to D15 nothing leaks, E1 to E9 it writes the thing, F1 to F9 cross platform parity, G1 to G2 the deliverable. <b>Every new assertion is proven by reverting the bug it covers and confirming the test goes red</b>, per the rule adopted after the three test-fidelity defects.</li>
+    </ul>
+  </div>
+
+  <div class="phase gate">
+    <h4>Phase 7. GATE: use it for real work on Windows for a week</h4>
+    <div class="dep">Depends on 5 and 6 / your judgement, not a green test</div>
+    <ul>
+      <li>Record a real multi-app task and read the SOP honestly. The bar is G1: open a console, copy a value, switch to a config app, paste, restart a service, with the password manager excursion appearing as a <code>redacted_gap</code>.</li>
+      <li><b>Do not start macOS before this gate passes.</b> terminator is a well-funded team that built exactly this abstraction in Rust, shipped Windows, and never got macOS or Linux out. Cross-platform accessibility is where this project will bleed, and the only defence is proving the product design on one platform first.</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <h4>Phase 8. macOS</h4>
+    <div class="dep">Depends on Phase 7 passing / about 8 to 12 days</div>
+    <ul>
+      <li>AX tree reader, ScreenCaptureKit at a <b>macOS 14 floor</b> (below that there is no one-shot API), and the TCC onboarding flow.</li>
+      <li><b>Request Input Monitoring before touching the accessibility check.</b> rdar://7381305: <code>IOHIDRequestAccess()</code> does not work if accessibility status was previously checked via <code>AXIsProcessTrustedWithOptions(NULL)</code>. Get this order wrong and you cannot obtain both permissions in one app.</li>
+      <li>Use <code>.listenOnly</code> tap mode, not <code>.defaultTap</code>: smaller permission, and it cannot accidentally eat the user's clicks. Handle <code>kCGEventTapDisabledByTimeout</code> and re-arm.</li>
+      <li><b>The blurry screenshot trap:</b> <code>SCStreamConfiguration.width/height</code> are in pixels, <code>SCWindow.frame</code> is in points. Set the config straight from the frame and you get a low-res image upscaled to display size, which destroys OCR and halves effective resolution on Retina. Multiply by <code>pointPixelScale</code>.</li>
+      <li><b><code>IsSecureEventInputEnabled()</code> polling at every keystroke burst boundary,</b> plus stuck-state detection with a user-visible error naming the holding app. This is a genuine capability gain over Windows and Linux, not a caveat. See section 05.</li>
+      <li><b>A non-nil tap is not a healthy tap.</b> Poll <code>tapIsEnabled()</code> on a roughly 5 s timer and reinstall, handle <code>kCGEventTapDisabledByTimeout</code> and <code>kCGEventTapDisabledByUserInput</code>, and preflight with <code>CGPreflightListenEventAccess()</code>.</li>
+      <li><b>Ship unsandboxed, which forecloses the Mac App Store.</b> App Sandbox blocks the Accessibility grant outright: <code>AXIsProcessTrusted</code> always returns false, the prompt never appears, and the app cannot be added manually in System Settings. Confirmed across four Apple forum threads. That is a distribution decision, not just a technical one, and for a personal local tool it costs nothing.</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <h4>Phase 9. Linux, X11 only, deferred</h4>
+    <div class="dep">Depends on hardware existing / about 5 to 8 days once it does</div>
+    <ul>
+      <li>AT-SPI via the <code>atspi</code> crate 0.30.0. StepSnap's Linux <code>get_focused_field_value</code> is fully implemented against it and sits in the same file as the stub, so the missing half has a working reference beside it.</li>
+      <li>XComposite plus <code>XShmGetImage</code> for capture, XInput2 raw events for input.</li>
+      <li><b>The high-leverage trick:</b> set <code>ScreenReaderEnabled=true</code> on <code>org.a11y.Status</code> at startup. Chromium, GTK and Qt applications then build their accessibility trees <b>retroactively, without relaunching</b>. Without it every Electron app on the machine is invisible. Side effect worth knowing: on GNOME this can launch Orca.</li>
+      <li>Read <code>joshii-h/stepshot</code> first (0BSD licence, the most permissive that exists). It proves this architecture on the hardest platform, using <code>/dev/input</code> evdev to bypass Wayland entirely.</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">07 / Risk</p>
+  <h2>Risk matrix</h2>
+  <p class="sub">Ordered by probability times impact. The top three are the ones that decide whether this ships.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Risk</th><th>Probability</th><th>Impact</th><th>Mitigation</th></tr></thead>
+    <tbody>
+      <tr class="bad">
+        <td><b>Cross-platform accessibility is where this bleeds.</b> terminator shipped Windows and never got mac or Linux out. StepSnap's Linux arm returns a hardcoded string</td>
+        <td><span class="pill p-high">High</span></td>
+        <td><span class="pill p-crit">High</span></td>
+        <td>Windows first, gated on a week of real use before macOS starts. Linux deferred until hardware exists. Accessibility is enrichment, never a dependency</td>
+      </tr>
+      <tr class="bad">
+        <td><b>Redaction fails open when the tree is unreadable.</b> Empty result is indistinguishable from "nothing to redact"</td>
+        <td><span class="pill p-med">Medium</span></td>
+        <td><span class="pill p-crit">Critical</span></td>
+        <td>Inverted trust model. Six-point positive attestation, any failure drops the step with a named reason. Re-OCR the blacked-out rect to verify</td>
+      </tr>
+      <tr>
+        <td><b>Windows silently unhooks a slow low-level hook.</b> MSDN, verbatim: "the hook is silently removed without being called. There is no way for the application to know"</td>
+        <td><span class="pill p-high">High</span></td>
+        <td><span class="pill p-crit">High</span></td>
+        <td>Callback pushes to a queue and returns, nothing else. <code>GetLastInputInfo</code> watchdog (it does not depend on the hook): input advancing 5 s with an empty queue means the hook is dead. Re-hook, banner, and a <code>HOOK_LOST</code> marker in the step stream</td>
+      </tr>
+      <tr class="bad">
+        <td><b>"Unknown" read as "not a password".</b> Four mechanisms on three platforms return a value indistinguishable from a genuine negative</td>
+        <td><span class="pill p-high">High</span></td>
+        <td><span class="pill p-crit">Critical</span></td>
+        <td>Three-state logic everywhere: secure, not-secure, unknown, and unknown fails closed. This is the single invariant to put in the implementation spec. See the top of section 05</td>
+      </tr>
+      <tr>
+        <td><b>UIA fails against elevated windows (UIPI),</b> so admin consoles get no name, no rect and no <code>IsPassword</code></td>
+        <td><span class="pill p-crit">Certain</span></td>
+        <td><span class="pill p-med">Medium</span></td>
+        <td>Designed, not fixed. Capture pixels, mark <code>unannotated: elevated target</code>, and let the fail-closed gate block that screenshot from synthesis. Documented limitation, not a bug. <code>uiAccess="true"</code> is not worth it and Project Zero is tightening that path</td>
+      </tr>
+      <tr>
+        <td><b>Another app leaves macOS stuck in secure input,</b> so the recorder captures no keystrokes at all. Chrome is our most likely offender</td>
+        <td><span class="pill p-med">Medium</span></td>
+        <td><span class="pill p-high">Medium</span></td>
+        <td>Detect the stuck state and say "another application is holding secure input" rather than shipping a quietly incomplete SOP. Name the holder from <code>kCGSSessionSecureInputPID</code> as a hint only, never a branch</td>
+      </tr>
+      <tr>
+        <td><b>DPI and coordinate mismatch draws the outline in the wrong place,</b> and it looks right on the primary monitor</td>
+        <td><span class="pill p-high">High</span></td>
+        <td><span class="pill p-high">Medium</span></td>
+        <td>The never-transform invariant, per-frame scale and origin, calibration probe at Start, plausibility band that ships no outline rather than a wrong one</td>
+      </tr>
+      <tr>
+        <td><b>Electron apps return an empty tree on the FIRST walk.</b> Step 1 of a Slack recording is systematically nameless and later ones are fine, so a spot check passes</td>
+        <td><span class="pill p-high">High</span></td>
+        <td><span class="pill p-med">Medium</span></td>
+        <td>Probe every allowlisted app at Start to depth 3 and count named elements. Re-probe after 1 s to absorb the lazy-build case before recording rather than at step 1</td>
+      </tr>
+      <tr>
+        <td><b>A black frame diffs as perfectly stable,</b> so settle fires instantly and the model confidently narrates a black image</td>
+        <td><span class="pill p-med">Medium</span></td>
+        <td><span class="pill p-crit">High</span></td>
+        <td>Luminance-variance floor, a second <code>BLANK-IMAGE</code> sentinel matched by substring, three black frames in a session stop the recording</td>
+      </tr>
+      <tr>
+        <td><b>macOS TCC and signing block the whole Mac leg.</b> Ad-hoc signatures have no stable Designated Requirement, so grants die on every rebuild while the Settings toggle still shows as checked</td>
+        <td><span class="pill p-med">Medium</span></td>
+        <td><span class="pill p-high">High</span></td>
+        <td>Spike S1 before any construction. Ship a real <code>.app</code> and launch via <code>open</code> (the responsible-process confound alone may explain the reported symptom). Free Personal Team Apple Development certificate. <code>tccutil reset</code> after switching</td>
+      </tr>
+      <tr>
+        <td><b>The aspect guard becomes a step-1 certainty.</b> A 3840x1080 ultrawide is 3.5:1 and a 400x1400 sidebar is 1:3.5, and <code>MAX_ASPECT</code> is 2.2</td>
+        <td><span class="pill p-high">High</span></td>
+        <td><span class="pill p-high">Medium</span></td>
+        <td>Crop-toward-target stops being a quality nicety and becomes mandatory. The tiling path, theoretical in the browser, must actually be implemented and tested by reverting the guard and watching the test go red</td>
+      </tr>
+      <tr>
+        <td><b>Microsoft may be right and per-click accessibility is a trap</b></td>
+        <td><span class="pill p-med">Medium</span></td>
+        <td><span class="pill p-high">High</span></td>
+        <td>The hybrid is the hedge. Tier 1 always produces a usable step with no accessibility involved, so if tier 2 proves unreliable the product degrades to Microsoft's architecture rather than failing</td>
+      </tr>
+      <tr>
+        <td><b>The relay has no authentication and never had any.</b> <code>server.js:57</code> allows an absent Origin header, so any local process can drive it</td>
+        <td><span class="pill p-crit">Certain</span></td>
+        <td><span class="pill p-high">Medium</span></td>
+        <td>Unix domain socket or Windows named pipe. The OS enforces the ACL, no browser or page on the machine can reach it, and <code>node:http</code> serves over both so the route handlers are unchanged</td>
+      </tr>
+      <tr>
+        <td><b>67 acceptance criteria become scope creep</b></td>
+        <td><span class="pill p-med">Medium</span></td>
+        <td><span class="pill p-med">Medium</span></td>
+        <td>Tier them. Groups A, B, C, D and E gate the Windows cut. Group F only becomes meaningful when a second platform exists. Group G is the gate at Phase 7</td>
+      </tr>
+      <tr>
+        <td><b>Wayland cannot be supported at all</b></td>
+        <td><span class="pill p-crit">Certain</span></td>
+        <td><span class="pill p-med">Medium</span></td>
+        <td>Declare it. Check <code>XDG_SESSION_TYPE</code> at startup and say so in the UI, with a manual capture hotkey as the only honest offering. Revisit when InputCapture backends land in wlroots, Hyprland and niri, and when GNOME's next-generation protocol leaves early planning. Neither has a date</td>
+      </tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <p class="eyebrow">08 / Files</p>
+  <h2>What moves, what is created, what is deleted</h2>
+
+  <div class="card">
+    <p class="files"><span class="mod">MOVED (git mv, contents unchanged)</span>
+  extension/                          -> apps/extension/
+    all 10 files, no internal path changes needed
+
+<span class="mod">MODIFIED (nine one-line path constants)</span>
+  test/evidence.mjs:29                const EXT = ...
+  test/probe-cdp.mjs:17
+  test/probe-launch.mjs:14
+  test/probe-loaded.mjs:15
+  test/repro-second-recording.mjs:17
+  test/harness.mjs:39, 421, 448
+  auto/driver.mjs:38
+
+<span class="mod">MODIFIED (relay hardening, phase 2.1)</span>
+  relay/claude.js                     resolveExe POSIX candidates, POSIX tree kill
+  relay/server.js                     origin check -> socket or named pipe
+  relay/smoke.js:59                   version pin 2.1.219 -> current, .exe assert
+  relay/scrub.js:169                  SOP screenshot reference bug
+  .gitignore                          anchor nine patterns, drop three duplicates
+
+<span class="add">CREATED (shared core)</span>
+  core/schema.js                      source of truth, byte-identity asserted
+
+<span class="add">CREATED (the desktop app)</span>
+  apps/desktop/main.js                Electron main, hosts the relay
+  apps/desktop/panel/                 HTML and CSS verbatim, JS rewritten
+  apps/desktop/native/                napi-rs Rust addon
+    src/lib.rs                        ThreadsafeFunction boundary
+    src/hook.rs                       message pump thread, queue and return
+    src/accessibility.rs              lifted from StepSnap, three cfg arms
+    src/capture.rs                    WGC, SCK, XComposite
+    src/classify.rs                   openstep candidate scoring
+    src/ocr.rs                        pure-onnx-ocr fallback
+  apps/desktop/coalesce.js            raw events -> steps
+  apps/desktop/settle.js              four-entrant race
+  apps/desktop/scope.js               three-tier scoping, identity map
+  apps/desktop/redact.js              six-point attestation gate
+  apps/desktop/store.js               SQLite WAL plus frame files
+
+<span class="add">CREATED (verification)</span>
+  test/harness-desktop.mjs            fake OS adapter, pure logic
+  test/probe-win.mjs                  live OS probes
+  test/evidence-desktop.mjs           real apps, real screenshots
+  CONTRACT-desktop.md                 67 criteria in seven groups
+
+<span class="del">DELETED</span>
+  nothing yet. The extension stays live and shares the relay.</p>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">09 / Your call</p>
+  <h2>Four decisions I did not make for you</h2>
+
+  <div class="card">
+    <h3 style="margin-top:0">1. One memory, or two</h3>
+    <p>The monorepo recommendation gives one MemPalace wing and one wiki covering two front-ends, which is what keeps the redaction gate in one place with a test across it. A separate repository would give the desktop product its own clean memory identity from day one. <b>That is the one legitimate argument for option C and it is yours to weigh.</b> Everything else favours the monorepo.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">2. Linux: defer, or buy a box</h3>
+    <p>WSL2 Ubuntu is not a substitute. It has no real compositor, no session D-Bus with a desktop on it, no AT-SPI registry and no PipeWire portal. Building the Linux leg there would be writing code you cannot run, which is exactly how StepSnap ended up with a stub that returns <code>"UI Element"</code>. Options: defer entirely (recommended), a 150 to 300 USD mini PC or old laptop running Ubuntu GNOME <b>on X11</b>, or a cloud desktop VM which handles AT-SPI and X11 but is poor for the part that needs testing.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">3. Bug 22, inherited and still open</h3>
+    <p>The opt-in Opus checkbox was never built, so <code>MODELS.synthesizeUpgrade</code> is unreachable. Two clean ways out: build the toggle, or delete the slot and the branch. Leaving a live branch no caller can reach is exactly the shape of the ten bugs that returned success while broken. <b>The desktop app inherits this either way, so decide it now rather than duplicating it.</b></p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">4. The isolated personal login, still not done</h3>
+    <p>The relay currently answers on <code>127.0.0.1:8787</code> with <code>configDir: C:\Users\chuck\.claude</code>, which is the work seat. Every synthesis call this project makes is spending Promise quota. <b>The desktop app multiplies this,</b> because it will be run far more often than the extension. One OAuth login closes it and it blocks nothing else.</p>
+    <div class="cmd">cd /c/Users/chuck/Desktop/oruga-scribe
+CLAUDE_CONFIG_DIR="$PWD/relay/.claude-home" claude</div>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">10 / Approval</p>
+  <h2>Checklist</h2>
+
+  <div class="card">
+    <ul class="clean">
+      <li class="block"><span class="box"></span><span><b>Approve the hybrid capture approach (option C)</b> over pure per-click accessibility or Microsoft's frames-only architecture</span></li>
+      <li class="block"><span class="box"></span><span><b>Approve the narrow monorepo (option B)</b> over a git branch or a separate repository, or choose C if separate memory matters more</span></li>
+      <li class="block"><span class="box"></span><span><b>Approve Electron 43 plus a napi-rs addon</b> over Tauri</span></li>
+      <li class="block"><span class="box"></span><span><b>Approve the platform tiers:</b> Windows first, macOS after a real-use gate, Linux X11 deferred, Wayland declared unsupported</span></li>
+      <li class="block"><span class="box"></span><span><b>Approve running the four Phase 0 spikes first,</b> about 2 days, before any construction</span></li>
+      <li class="block"><span class="box"></span><span>Decide the four open questions in section 09</span></li>
+      <li><span class="box"></span><span>Then, and only then: Phase 1 touches the repository. Nothing is committed or pushed without a separate explicit go ahead</span></li>
+    </ul>
+  </div>
+
+  <div class="note">
+    <b>Nothing in this plan has been executed.</b> No file was created or modified in the repository other than this page, no git command that writes was run, no branch was created, and nothing was pushed. The working tree is exactly as it was: four modified files and two untracked directories, all of it coherent finished work from the last session.
+  </div>
+</section>
+
+<footer>
+  <div class="wrap" style="padding:0">
+    oruga-scribe desktop, ultraplan rev 1.1, 2026-08-24. Local planning artifact. Never deployed, never published, never pushed without an explicit go ahead.
+    Research: 6 parallel agents covering port surface, accessibility APIs, capture and permissions, shell and packaging, repository strategy, and product risk. The two accessibility agents audited each other and produced five corrections, two of them material. Rev 1.1 carries them.
+  </div>
+</footer>
+
+</div>
