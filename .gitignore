@@ -62,3 +62,18 @@ desktop.ini
 /evidence/
 /evidence-repro/
 /evidence-desktop/
+
+# Desktop recorder build output. Anchored, because these names are specific to apps/desktop.
+# Compiled binaries never belong in the repo, and the spike writes real screenshots of whatever
+# was on screen when it ran, which is the same "never commit a recording" rule as /out.
+/apps/desktop/spike/spike-out/
+/apps/desktop/spike/*.exe
+/apps/desktop/spike/*.dll
+/apps/desktop/spike/*.pdb
+/apps/desktop/spike/out.jsonl
+/apps/desktop/spike/err.log
+/apps/desktop/**/bin/
+/apps/desktop/**/obj/
+
+# The relay launcher log. Local noise, and it names local paths.
+/.awake-local.log
