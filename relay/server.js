@@ -15,6 +15,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const C = require('./claude')
 const scrub = require('./scrub')
+const bundle = require('./bundle')
 
 const PORT = Number(process.env.SCRIBE_PORT || 8787)
 const HOST = '127.0.0.1'
@@ -94,6 +95,7 @@ const server = http.createServer(async (req, res) => {
     if (req.url === '/health') return await health(res)
     if (req.url === '/narrate' && req.method === 'POST') return await narrate(req, res)
     if (req.url === '/synthesize' && req.method === 'POST') return await synthesize(req, res)
+    if (req.url === '/bundle' && req.method === 'POST') return await bundleRoute(req, res)
     if (req.url === '/preview' && req.method === 'POST') return await preview(req, res)
     return json(res, 404, { ok: false, error: 'no such route' })
   } catch (e) {
@@ -307,6 +309,64 @@ async function synthesize(req, res) {
     rateLimit: out.rateLimit,
     model: out.model,
   })
+}
+
+/**
+ * Export a synthesized session as a /sop-to-video bundle.
+ *
+ * Deliberately a separate route rather than part of synthesize(). Synthesis is the path that
+ * produces the document, it works, and it is the expensive call. Bundling is a second,
+ * optional artifact, and a failure here must never cost the SOP.
+ *
+ * Body: { dir, session, frames: [{ n, base64 }] }
+ * `frames` must be the REDACTED model frames only. before/after frames are full viewport
+ * captures with nothing painted over them and must never leave the browser.
+ */
+async function bundleRoute(req, res) {
+  const body = await readJson(req)
+  const session = body && body.session
+  if (!session || !Array.isArray(session.steps) || !session.steps.length) {
+    return json(res, 400, { ok: false, error: 'a session with steps is required' })
+  }
+
+  // PATH TRAVERSAL, again: `dir` comes from the request body. synthesize() hands the panel a
+  // real path and the panel hands it back, but the endpoint is not the panel. Resolve it and
+  // require that it actually sits under OUT_DIR, so no payload can aim a write elsewhere.
+  const raw = typeof body.dir === 'string' ? body.dir : ''
+  const dir = path.resolve(raw)
+  const root = path.resolve(OUT_DIR)
+  if (!raw || (dir !== root && !dir.startsWith(root + path.sep))) {
+    return json(res, 400, { ok: false, error: 'dir must be a path inside out/' })
+  }
+  if (!fs.existsSync(dir)) {
+    return json(res, 400, { ok: false, error: 'dir does not exist, synthesize first' })
+  }
+
+  // Scrub again. The frames are already redacted in the browser, but the step prose in this
+  // payload is client supplied and this is the fail closed rule: if the scrubber throws we do
+  // not know what is in it, so nothing gets written.
+  let clean
+  try {
+    clean = scrub.scrubPayload({ goal: session.goal, company: session.company, steps: session.steps })
+  } catch (e) {
+    return json(res, 200, { ok: false, error: 'redaction failed, nothing written: ' + e.message })
+  }
+
+  try {
+    const out = bundle.writeBundle({
+      dir,
+      session: { ...clean, goal: session.goal },
+      frames: body.frames,
+    })
+    if (!out.ok) return json(res, 200, { ok: false, error: out.error })
+    if (out.missingFrames.length) {
+      console.error('  bundle: ' + out.missingFrames.length +
+        ' step(s) have no screenshot: ' + out.missingFrames.join(', '))
+    }
+    return json(res, 200, out)
+  } catch (e) {
+    return json(res, 200, { ok: false, error: 'bundle failed: ' + e.message })
+  }
 }
 
 /** Exactly what would be sent, so redaction is verifiable rather than asserted. */

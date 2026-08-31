@@ -309,6 +309,9 @@ el.synth.addEventListener('click', async () => {
     if (!out.ok) throw new Error(out.error || 'synthesis failed')
     setState('done', '')
     el.synth.textContent = 'SOP written'
+    // The bundle is a second artifact and must never be able to cost the SOP, so it runs after
+    // the state is already 'done' and reports its own failure without throwing.
+    await exportBundle(out.dir)
   } catch (e) {
     el.synth.disabled = false
     el.synth.textContent = 'Write the SOP'
@@ -317,6 +320,55 @@ el.synth.addEventListener('click', async () => {
     el.reviewBanner.classList.remove('hidden')
   }
 })
+
+/**
+ * Ship the screenshots to the relay so it can write the /sop-to-video bundle next to the SOP.
+ *
+ * ONLY `step.modelFrame` is ever read here. `beforeFrame` and `afterFrame` are full viewport
+ * captures with nothing painted over them: the redaction pass runs on the model frame alone, so
+ * those two must never leave the browser. loadThumb() falls back to beforeFrame for a thumbnail
+ * that stays local; this function deliberately does not.
+ */
+async function exportBundle(dir) {
+  if (!dir) return
+  const steps = visibleSteps()
+  const frames = []
+  let noFrame = 0
+  for (const step of steps) {
+    if (!step.modelFrame) { noFrame++; continue }
+    const r = await sw('getFrame', { key: step.modelFrame }).catch(() => null)
+    if (!r || !r.ok || !r.base64) { noFrame++; continue }
+    frames.push({ n: step.n, base64: r.base64 })
+  }
+
+  try {
+    const res = await fetch(RELAY + '/bundle', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ dir, session: { ...session, steps }, frames }),
+    })
+    const out = await res.json()
+    if (!out.ok) throw new Error(out.error || 'bundle failed')
+    // Say what is missing rather than reporting a clean export. A bundle whose screenshots are
+    // absent still produces a video, just an empty one, and that is worth knowing here.
+    const gaps = []
+    if (out.missingFrames && out.missingFrames.length) {
+      gaps.push(out.missingFrames.length + ' without a screenshot')
+    }
+    if (noFrame) gaps.push(noFrame + ' with no redacted frame stored')
+    el.reviewBanner.className = gaps.length ? 'banner warn' : 'banner ok'
+    el.reviewBanner.textContent = 'SOP and video bundle written to ' + dir
+      + ' (' + out.steps + ' steps'
+      + (gaps.length ? ', ' + gaps.join(', ') : '') + ').'
+    el.reviewBanner.classList.remove('hidden')
+  } catch (e) {
+    // The SOP is already on disk. Say the bundle failed, and do not undo the success above.
+    el.reviewBanner.className = 'banner warn'
+    el.reviewBanner.textContent = 'The SOP was written. The video bundle failed: '
+      + String(e.message || e)
+    el.reviewBanner.classList.remove('hidden')
+  }
+}
 
 // --- live updates from the worker -------------------------------------------
 
