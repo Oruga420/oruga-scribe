@@ -131,6 +131,94 @@ fine; only the stitch fails.
 step with `degraded` and `redacted`. A step with no control name should not get a voice over that
 confidently names a button.
 
+## Stage 5: the finished document
+
+The bundle and the mp4 are inputs, not the deliverable. What a reader opens is a page.
+
+### Ask which format is wanted
+
+Before writing anything, ask the operator. One question, two real options, and they are not
+interchangeable:
+
+```
+AskUserQuestion:
+  question: "How do you want the finished SOP?"
+  options:
+    - "HTML file in the session folder (Recommended)"
+        Everything works: the video plays inline, Barlow loads, full resolution
+        screenshots. It is a folder you zip and send.
+    - "Claude Artifact"
+        A private page on claude.ai with a link you can share, no file to pass
+        around. Costs are real: see below.
+```
+
+If they do not care, default to the HTML file. It is the one where nothing has to be
+compromised.
+
+### Option A: HTML file
+
+Write `SOP.html` into the session folder.
+
+**This personal copy has no house stylesheet.** The Promise branded one lives in
+`Promise-Studios/operations` under `automations/scribe-promise/apps/desktop/sop-html/` and does
+not belong here: this is Alejandro's own project and borrowing a company palette for it mixes
+identities that are deliberately kept apart. Load `/frontend-design` and write something clean,
+or keep it plain. Relative paths only, because the folder has to survive being zipped.
+
+### Option B: Claude Artifact
+
+Load the `artifact-design` skill first, then write the page and publish it with the Artifact
+tool. Three constraints that will bite you if you learn them at publish time:
+
+**A strict CSP blocks every external host.** No CDN stylesheets, no remote images, and
+critically **no Google Fonts**, so any font `@import` will be
+blocked and the page falls back to whatever the viewer has. Either inline the font as a
+base64 `@font-face` or accept a system font stack and say so. Put all CSS in an inline `<style>` block and drop any `@import`.
+
+**Every asset must be a `data:` URI, and the whole page has a 16 MB ceiling.** Measured on a
+real 12 step recording of a 2560x1080 monitor:
+
+| | |
+|---|---|
+| 12 PNG screenshots, full resolution | 7.6 MB |
+| the same, base64 encoded into the page | **10.4 MB** |
+| after `ffmpeg -vf scale=1400:-1 -q:v 6` to JPEG | 1.4 MB, **1.9 MB** encoded |
+
+So full resolution PNGs eat two thirds of the budget before the video is even considered, and
+a 25 step recording blows the limit outright. **Downscale before encoding:**
+
+```bash
+for f in <session>/screens/step-*.png; do
+  ffmpeg -loglevel error -y -i "$f" -vf "scale=1400:-1" -q:v 6 "${f%.png}.jpg"
+done
+```
+
+That was measured at 645 KB to 119 KB per frame, a 5.4x reduction, with the text in a File
+Explorer screenshot still legible.
+
+**The video usually does not fit.** Check the mp4 size, multiply by 1.37 for base64, and add
+the encoded screenshots. If the total is anywhere near 16 MB, publish the artifact **without**
+the video and say the mp4 is in the session folder. An artifact that fails to publish
+after you encoded everything wastes more time than a page with one honest omission.
+
+Give the artifact a favicon and a short title, both required. `oruga-scribe` is not a title;
+name it after the procedure.
+
+**Do not publish an artifact of a recording of anything sensitive without asking first.**
+Publishing puts it on claude.ai. It starts private and it is his to share, but the screenshots
+have not left the machine until this moment, and that is a line worth naming out loud rather
+than crossing quietly.
+
+There is no house stylesheet in this personal copy. See Option A above.
+
+Take the step text from `bundle.json`, never from your own reading of the screenshots. Strip
+`[verify:]` markers from the visible page and mark the step degraded instead: printing the marker
+beside a confident sentence reads as a claim. A redacted step gets no guess about its value.
+
+Then open the result and look at it. Confirm the video plays, the images load, and nothing
+overflows. A page that renders with broken image icons is not done, and a file existing is not
+evidence of its content.
+
 ## Failure modes worth knowing
 
 | What you see | What it is |
